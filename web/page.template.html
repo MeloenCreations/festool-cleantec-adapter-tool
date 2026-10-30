@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Festool CLEANTEC adapter</title>
+  <style>
+    :root {
+      --ink: #1c1915;
+      --muted: #5c564c;
+      --line: #d7d0c4;
+      --paper: #f3efe6;
+      --card: #fffcf7;
+      --green: #0e5c32;
+      --green-dark: #0a4023;
+      --danger: #8d2e24;
+      --danger-bg: #f8e8e4;
+      --wall: #d7e4d6;
+      --bore: #fffcf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 28px 20px 64px;
+    }
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin: 0;
+      max-width: 40rem;
+      color: var(--muted);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 380px) 1fr;
+      gap: 28px;
+      margin-top: 28px;
+      align-items: start;
+    }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    form, .preview, .notes {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    form { padding: 18px 18px 16px; }
+    label.field {
+      display: block;
+      margin: 0 0 14px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-weight: 400;
+    }
+    input[type="number"] {
+      width: 7.5rem;
+      font: inherit;
+      font-size: 18px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: white;
+      color: var(--ink);
+    }
+    input[type="number"]:focus {
+      outline: 2px solid var(--green);
+      border-color: var(--green);
+    }
+    .unit { color: var(--muted); }
+    fieldset {
+      margin: 0 0 14px;
+      padding: 0;
+      border: 0;
+    }
+    legend {
+      font-size: 14px;
+      font-weight: 650;
+      padding: 0;
+      margin-bottom: 6px;
+    }
+    .choices { display: flex; flex-wrap: wrap; gap: 8px 16px; font-weight: 400; }
+    .choices label { font-weight: 400; }
+    .hint { display: block; margin-top: 4px; color: var(--muted); font-weight: 400; font-size: 14px; }
+    .summary {
+      margin: 4px 0 14px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+    button {
+      font: inherit;
+      font-size: 16px;
+      background: var(--green);
+      color: white;
+      border: 0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+    button:hover:enabled { background: var(--green-dark); }
+    button:disabled { background: #b7b1a6; cursor: not-allowed; }
+    .error {
+      margin: 10px 0 0;
+      color: var(--danger);
+      background: var(--danger-bg);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .error:empty { display: none; }
+    .preview { padding: 12px 12px 4px; }
+    .preview h2, .notes h2 {
+      margin: 4px 8px 0;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 650;
+    }
+    svg { width: 100%; height: auto; display: block; }
+    .notes { margin-top: 22px; padding: 8px 18px 16px; }
+    .notes h2 { margin: 14px 0 4px; text-transform: none; letter-spacing: 0; font-size: 18px; color: var(--ink); }
+    .notes p, .notes li { color: var(--muted); }
+    .notes ul { margin: 6px 0 0; padding-left: 1.2rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Festool CLEANTEC adapter</h1>
+      <p>One end is the female CLEANTEC socket a Festool suction hose twists into. The other end is a tube you size.</p>
+    </header>
+    <div class="layout">
+      <form id="adapter-form">
+        <label class="field">Diameter
+          <span class="control">
+            <input id="diameter" type="number" name="diameter" min="1" max="200" step="0.1" required>
+            <span class="unit">mm</span>
+          </span>
+        </label>
+        <fieldset>
+          <legend>This diameter is the</legend>
+          <div class="choices">
+            <label><input type="radio" name="measurement" value="inner"> Inner diameter</label>
+            <label><input type="radio" name="measurement" value="outer"> Outer diameter</label>
+          </div>
+        </fieldset>
+        <label class="field">Tube length
+          <span class="control">
+            <input id="length" type="number" name="length" min="1" max="500" step="0.5" required>
+            <span class="unit">mm</span>
+          </span>
+          <span class="hint">Straight tube only. The socket and the transition are added to this.</span>
+        </label>
+        <label class="field">Wall thickness
+          <span class="control">
+            <input id="thickness" type="number" name="thickness" min="0.4" max="20" step="0.1" required>
+            <span class="unit">mm</span>
+          </span>
+          <span class="hint">Thickness of the tube wall. The CLEANTEC socket keeps its own shape.</span>
+        </label>
+        <p class="summary" id="summary"></p>
+        <button type="submit" id="download">Download SCAD file</button>
+        <p class="error" id="error" role="alert"></p>
+      </form>
+      <div class="preview">
+        <h2>Section</h2>
+        <svg id="diagram" role="img" aria-labelledby="diagram-title">
+          <title id="diagram-title">Cross section of the adapter</title>
+        </svg>
+      </div>
+    </div>
+    <section class="notes">
+      <h2>How it locks</h2>
+      <p>Push the male CLEANTEC plug on the hose into the socket and twist it until the three lugs sit behind the shelves. Pulling straight out will not release it. Twist back to the entry slots to remove it.</p>
+      <h2>Printing</h2>
+      <ul>
+        <li>Open the file in OpenSCAD, render it with F6, and export an STL.</li>
+        <li>Print with the tube on the bed and the socket mouth facing up. The shelves are chamfered so they do not need supports.</li>
+        <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
+        <li>If the plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
+      </ul>
+    </section>
+  </main>
+  <script type="text/plain" id="scad-source">
+___SCAD_SOURCE___
+  </script>
+  <script>
+    const SOURCE = document.getElementById("scad-source").textContent;
+
+    function paramLine(name) {
+      const match = SOURCE.match(new RegExp("^" + name + " = (.+);", "m"));
+      if (!match) throw new Error("Missing " + name + " in the OpenSCAD source.");
+      return match[1].replace(/"/g, "").trim();
+    }
+
+    function constant(name) {
+      return Number(paramLine(name));
+    }
+
+    const SOCKET = {
+      od: constant("socket_od"),
+      h: constant("socket_h"),
+      exitD: constant("socket_exit_d"),
+      boreD: constant("bore_d"),
+      mouthD: constant("mouth_d"),
+    };
+
+    function fmt(value) {
+      const rounded = Math.round(value * 10000) / 10000;
+      return String(rounded);
+    }
+
+    function display(value) {
+      const tenths = Math.round((value + 1e-6) * 10);
+      return (tenths / 10).toFixed(1);
+    }
+
+    function readForm() {
+      const diameter = Number(document.getElementById("diameter").value);
+      const length = Number(document.getElementById("length").value);
+      const thickness = Number(document.getElementById("thickness").value);
+      const measurement = document.querySelector('input[name="measurement"]:checked')?.value;
+      return { diameter, length, thickness, measurement };
+    }
+
+    function describe(input) {
+      const { diameter, length, thickness, measurement } = input;
+      if (!measurement) return { error: "Choose inner or outer diameter." };
+      if (![diameter, length, thickness].every(Number.isFinite)) {
+        return { error: "Enter a number for diameter, tube length, and wall thickness." };
+      }
+      if (diameter <= 0 || length <= 0 || thickness <= 0) {
+        return { error: "Diameter, tube length, and wall thickness must be positive." };
+      }
+      const tubeId = measurement === "outer" ? diameter - 2 * thickness : diameter;
+      const tubeOd = measurement === "outer" ? diameter : diameter + 2 * thickness;
+      if (tubeId <= 0.5) {
+        return { error: "Wall thickness leaves no airflow. Reduce it or increase the diameter." };
+      }
+      const transition = Math.max(
+        8,
+        Math.abs(tubeOd - SOCKET.od) * 0.7,
+        Math.abs(tubeId - SOCKET.exitD) * 0.7
+      );
+      const total = length + transition + SOCKET.h;
+      return { tubeId, tubeOd, length, thickness, measurement, transition, total };
+    }
+
+    function summaryText(spec) {
+      const face = spec.measurement === "outer" ? "Outer tube" : "Inner tube";
+      return (
+        face + ", " + display(spec.tubeId) + " mm inside and " + display(spec.tubeOd) +
+        " mm outside, " + display(spec.length) + " mm long. The CLEANTEC socket is " +
+        display(SOCKET.od) + " mm across and " + display(SOCKET.h) +
+        " mm long, with a transition of " + display(spec.transition) +
+        " mm. Overall length " + display(spec.total) + " mm."
+      );
+    }
+
+    function withParams(spec) {
+      let source = SOURCE.trim() + "\n";
+      source = source
+        .replace(/^diameter = [^;]+;/m, "diameter = " + fmt(spec.diameter) + ";")
+        .replace(/^measurement = "[^"]+";/m, 'measurement = "' + spec.measurement + '";')
+        .replace(/^wall_length = [^;]+;/m, "wall_length = " + fmt(spec.length) + ";")
+        .replace(/^wall_thickness = [^;]+;/m, "wall_thickness = " + fmt(spec.thickness) + ";");
+      const note =
+        "// Tube " + spec.measurement + " diameter " + fmt(spec.diameter) +
+        " mm, length " + fmt(spec.length) + " mm, wall " + fmt(spec.thickness) + " mm.\n";
+      return note + source;
+    }
+
+    function filename(spec) {
+      const side = spec.measurement === "outer" ? "od" : "id";
+      return (
+        "cleantec-adapter-" + side + fmt(spec.diameter) +
+        "-len" + fmt(spec.length) + "-wall" + fmt(spec.thickness) + ".scad"
+      );
+    }
+
+    function download(spec) {
+      const blob = new Blob([withParams(spec)], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename(spec);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function sectionPath(spec) {
+      const z0 = 0;
+      const z1 = spec.length;
+      const z2 = spec.length + spec.transition;
+      const z3 = spec.total;
+      const boreZ = z2 + 6;
+      const mouthZ = z2 + 40;
+      const outer = [
+        [spec.tubeOd / 2, z0],
+        [spec.tubeOd / 2, z1],
+        [SOCKET.od / 2, z2],
+        [SOCKET.od / 2, z3],
+      ];
+      const inner = [
+        [spec.tubeId / 2, z0],
+        [spec.tubeId / 2, z1],
+        [SOCKET.exitD / 2, z2],
+        [SOCKET.boreD / 2, boreZ],
+        [SOCKET.boreD / 2, mouthZ],
+        [SOCKET.mouthD / 2, z3],
+      ];
+      return { outer, inner, z3 };
+    }
+
+    function draw(spec) {
+      const svg = document.getElementById("diagram");
+      const { outer, inner, z3 } = sectionPath(spec);
+      const margin = { left: 96, right: 168, top: 28, bottom: 24 };
+      const drawH = 460;
+      const maxR = Math.max(SOCKET.od, spec.tubeOd) / 2;
+      const scale = Math.min(drawH / z3, 150 / maxR);
+      const width = margin.left + margin.right + maxR * 2 * scale;
+      const height = margin.top + margin.bottom + z3 * scale;
+      const cx = margin.left + maxR * scale;
+      const yOf = (z) => margin.top + (z3 - z) * scale;
+      const xOf = (r) => cx + r * scale;
+
+      function ring(points) {
+        const right = points.map(([r, z]) => xOf(r).toFixed(2) + "," + yOf(z).toFixed(2));
+        const left = points.slice().reverse().map(([r, z]) => xOf(-r).toFixed(2) + "," + yOf(z).toFixed(2));
+        return right.concat(left).join(" ");
+      }
+
+      const title =
+        "Cross section. The socket mouth is at the top and the tube end is at the bottom. " +
+        summaryText(spec);
+      const dim = (x1, y1, x2, y2) =>
+        '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) +
+        '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="#8a8175" stroke-width="1"/>';
+
+      const tubeMid = yOf(spec.length / 2);
+      const overallMid = yOf(z3 / 2);
+      const odY = yOf(z3 - 8);
+
+      svg.setAttribute("viewBox", "0 0 " + width.toFixed(1) + " " + height.toFixed(1));
+      svg.innerHTML =
+        '<title id="diagram-title">' + title + "</title>" +
+        '<polygon points="' + ring(outer) + '" fill="#d7e4d6" stroke="#0e5c32" stroke-width="1.5"/>' +
+        '<polygon points="' + ring(inner) + '" fill="#fffcf7" stroke="#0e5c32" stroke-width="1"/>' +
+        dim(28, yOf(0), 28, yOf(z3)) +
+        '<text x="22" y="' + overallMid.toFixed(1) + '" text-anchor="middle" transform="rotate(-90 22 ' +
+          overallMid.toFixed(1) + ')" fill="#5c564c" font-size="13">' +
+          display(spec.total) + " mm overall</text>" +
+        '<text x="' + (cx + maxR * scale + 12).toFixed(1) + '" y="' + tubeMid.toFixed(1) +
+          '" fill="#1c1915" font-size="13">Tube ' + display(spec.tubeId) + " / " +
+          display(spec.tubeOd) + " mm</text>" +
+        '<text x="' + (cx + maxR * scale + 12).toFixed(1) + '" y="' + (tubeMid + 16).toFixed(1) +
+          '" fill="#5c564c" font-size="12">inside / outside</text>' +
+        '<text x="' + (cx + maxR * scale + 12).toFixed(1) + '" y="' + odY.toFixed(1) +
+          '" fill="#1c1915" font-size="13">Socket ' + display(SOCKET.od) + " mm</text>" +
+        '<text x="' + cx.toFixed(1) + '" y="16" text-anchor="middle" fill="#5c564c" font-size="12">mouth, twist-lock</text>';
+    }
+
+    function refresh() {
+      const input = readForm();
+      const result = describe(input);
+      const error = document.getElementById("error");
+      const button = document.getElementById("download");
+      const summary = document.getElementById("summary");
+      if (result.error) {
+        error.textContent = result.error;
+        button.disabled = true;
+        summary.textContent = "";
+        return;
+      }
+      error.textContent = "";
+      button.disabled = false;
+      summary.textContent = summaryText(result);
+      result.diameter = input.diameter;
+      draw(result);
+    }
+
+    function init() {
+      document.getElementById("diameter").value = paramLine("diameter");
+      document.getElementById("length").value = paramLine("wall_length");
+      document.getElementById("thickness").value = paramLine("wall_thickness");
+      const measurement = paramLine("measurement");
+      document.querySelector('input[name="measurement"][value="' + measurement + '"]').checked = true;
+      document.getElementById("adapter-form").addEventListener("input", refresh);
+      document.getElementById("adapter-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const input = readForm();
+        const result = describe(input);
+        if (result.error) {
+          refresh();
+          return;
+        }
+        result.diameter = input.diameter;
+        download(result);
+      });
+      refresh();
+    }
+
+    init();
+  </script>
+</body>
+</html>
