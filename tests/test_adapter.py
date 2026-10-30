@@ -57,6 +57,26 @@ def read_stl(path: Path):
     return verts
 
 
+def _radii_about(verts, z: float, center_x: float):
+    import numpy as np
+
+    points = []
+    for tri in verts:
+        zz = tri[:, 2]
+        if (zz >= z).all() or (zz < z).all():
+            continue
+        for i in range(3):
+            a = tri[i]
+            b = tri[(i + 1) % 3]
+            if (a[2] - z) * (b[2] - z) < 0:
+                t = (z - a[2]) / (b[2] - a[2])
+                points.append(a + (b - a) * t)
+    if not points:
+        return np.array([])
+    pts = np.array(points)
+    return np.hypot(pts[:, 0] - center_x, pts[:, 1])
+
+
 def section_radii(verts, z: float, samples: int = 360):
     import numpy as np
 
@@ -349,12 +369,48 @@ class RenderTests(unittest.TestCase):
     def test_edge_and_right_angle_render_together(self):
         echoes, verts = self.render_case(28, "inner", 40, 3, alignment="edge", angle=90)
         points = verts.reshape(-1, 3)
+        self.assertAlmostEqual(echoes["Lead_h"], 8)
         self.assertAlmostEqual(
             float(points[:, 0].max()),
             echoes["Bend_r"] + echoes["Edge_offset"] + 40,
             delta=0.1,
         )
-        self.assertAlmostEqual(float(points[:, 2].max()), 98, delta=0.1)
+        self.assertAlmostEqual(
+            float(points[:, 2].max()),
+            echoes["Lead_h"] + echoes["Bend_r"] + echoes["Tube_OD"] / 2 + 45.4,
+            delta=0.1,
+        )
+
+    def test_edge_and_small_angle_do_not_pinch_the_wall(self):
+        echoes, verts = self.render_case(28, "inner", 40, 3, alignment="edge", angle=6)
+        import math
+
+        import numpy as np
+
+        lead = echoes["Lead_h"]
+        bend_r = echoes["Bend_r"]
+        offset = echoes["Edge_offset"]
+        tube_r = echoes["Tube_OD"] / 2
+        self.assertAlmostEqual(lead, 8)
+        self.assertAlmostEqual(offset, 5.25)
+        angle = 6 * math.pi / 180
+        tube_end_z = -lead - bend_r * math.sin(angle) - math.cos(angle) * 40
+        rim = tube_r * math.sqrt(max(0, 1 - math.cos(angle) ** 2))
+        lift = -(tube_end_z - rim)
+
+        # Midway along the straight taper the flush wall is still the socket's wall,
+        # and the passage stays open by about the wall thickness.
+        center_x = offset * 0.5
+        outer_r = 22.25 + (tube_r - 22.25) * 0.5
+        inner_r = 16 + (echoes["Tube_ID"] / 2 - 16) * 0.5
+        radii = _radii_about(verts, lift - lead * 0.5, center_x)
+        self.assertGreater(len(radii), 20)
+        self.assertAlmostEqual(float(radii.max()), outer_r, delta=0.35)
+        self.assertAlmostEqual(float(radii.min()), inner_r, delta=0.35)
+        self.assertGreater(float(radii.max() - radii.min()), 2.5)
+
+        points = verts.reshape(-1, 3)
+        self.assertAlmostEqual(float(points[:, 2].min()), 0, delta=0.08)
 
     def test_angle_limit_is_enforced_by_the_model(self):
         with tempfile.TemporaryDirectory() as tmp:
