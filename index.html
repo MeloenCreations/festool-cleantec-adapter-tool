@@ -57,7 +57,7 @@
       border-radius: 10px;
     }
     form { padding: 18px 18px 16px; }
-    label.field {
+    label.field, .field {
       display: block;
       margin: 0 0 14px;
       font-size: 14px;
@@ -180,6 +180,12 @@
             <label><input type="radio" name="measurement" value="outer"> Outer diameter</label>
           </div>
         </fieldset>
+        <div class="field">
+          <span class="choices">
+            <label><input type="checkbox" id="optimize" name="optimize"> Optimize for 3D printing</label>
+          </span>
+          <span class="hint">Adds 0.2 mm of clearance. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller.</span>
+        </div>
         <label class="field">Tube length
           <span class="control">
             <input id="length" type="number" name="length" min="1" max="500" step="0.5" required>
@@ -232,6 +238,7 @@
       <ul>
         <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
         <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
+        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on the diameter you chose. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller.</li>
         <li>Print with the tube on the bed and the socket mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
         <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
         <li>If the plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
@@ -244,9 +251,11 @@
 // The top end is a female CLEANTEC socket. The male plug on a Festool
 // D27 or D36 suction hose pushes in and twists to lock. The other end
 // is a tube. Set the tube diameter, whether that diameter is the inside
-// or the outside, the tube length, and the wall thickness. The tube can
-// stay centered or slide across until one outer wall lines up with the
-// socket, and it can leave the socket at an angle from -90 to 90 degrees.
+// or the outside, the tube length, and the wall thickness. Optimize for
+// 3D printing opens an inner diameter by 0.2 mm, or shrinks an outer
+// diameter by 0.2 mm. The tube can stay centered or slide across until
+// one outer wall lines up with the socket, and it can leave the socket
+// at an angle from -90 to 90 degrees.
 // Circles are divided into flats 0.25 mm wide, which is finer than a
 // 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
@@ -267,6 +276,10 @@ diameter = 28; // [1:0.1:200]
 
 // Which face of the tube `diameter` measures.
 measurement = "inner"; // [inner, outer]
+
+// Ease the chosen diameter by 0.2 mm for a typical FDM print.
+// An inner diameter is printed 0.2 mm larger. An outer diameter is printed 0.2 mm smaller.
+optimize_print = false;
 
 // Length of the straight tube, in millimetres.
 // The socket and the transition are added on top of this.
@@ -313,13 +326,17 @@ lip_h = 7;
 // Shelf centres in degrees. The last one is the shallow shelf.
 lip_centers = [0, 120, 240];
 
-tube_id = (measurement == "outer") ? diameter - 2 * wall_thickness : diameter;
-tube_od = (measurement == "outer") ? diameter : diameter + 2 * wall_thickness;
+allowance = optimize_print ? 0.2 : 0;
+sized = (measurement == "outer") ? diameter - allowance : diameter + allowance;
+tube_id = (measurement == "outer") ? sized - 2 * wall_thickness : sized;
+tube_od = (measurement == "outer") ? sized : sized + 2 * wall_thickness;
 
 assert(measurement == "inner" || measurement == "outer",
        "measurement must be \"inner\" or \"outer\"");
 assert(diameter > 0 && wall_length > 0 && wall_thickness > 0,
        "Diameter, length, and wall thickness must be positive.");
+assert(sized > 0,
+       "The print allowance removes the whole diameter. Increase it or turn optimization off.");
 assert(tube_id > 0.5,
        "Wall thickness leaves no airflow. Reduce it or increase the diameter.");
 assert(alignment == "center" || alignment == "edge",
@@ -607,7 +624,8 @@ echo(Bend_r = bend_r);
       const angle = readNumber("angle");
       const measurement = document.querySelector('input[name="measurement"]:checked')?.value;
       const alignment = document.querySelector('input[name="alignment"]:checked')?.value;
-      return { diameter, length, thickness, measurement, alignment, angle };
+      const optimize = document.getElementById("optimize").checked;
+      return { diameter, length, thickness, measurement, alignment, angle, optimize };
     }
 
     function scadCos(degrees) {
@@ -685,7 +703,7 @@ echo(Bend_r = bend_r);
     }
 
     function describe(input) {
-      const { diameter, length, thickness, measurement, alignment, angle } = input;
+      const { diameter, length, thickness, measurement, alignment, angle, optimize } = input;
       if (!measurement) return { error: "Choose inner or outer diameter." };
       if (alignment !== "center" && alignment !== "edge") {
         return { error: "Choose centered or along one edge." };
@@ -699,8 +717,13 @@ echo(Bend_r = bend_r);
       if (angle < -90 || angle > 90) {
         return { error: "Angle must be from -90 to 90 degrees." };
       }
-      const tubeId = measurement === "outer" ? diameter - 2 * thickness : diameter;
-      const tubeOd = measurement === "outer" ? diameter : diameter + 2 * thickness;
+      const allowance = optimize ? 0.2 : 0;
+      const sized = measurement === "outer" ? diameter - allowance : diameter + allowance;
+      if (sized <= 0) {
+        return { error: "The print allowance removes the whole diameter. Increase it or turn optimization off." };
+      }
+      const tubeId = measurement === "outer" ? sized - 2 * thickness : sized;
+      const tubeOd = measurement === "outer" ? sized : sized + 2 * thickness;
       if (tubeId <= 0.5) {
         return { error: "Wall thickness leaves no airflow. Reduce it or increase the diameter." };
       }
@@ -711,7 +734,7 @@ echo(Bend_r = bend_r);
       );
       const total = length + transition + SOCKET.h;
       const spec = {
-        diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, transition, total,
+        diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, optimize, transition, total,
       };
       const size = partSize(spec);
       spec.width = size.width;
@@ -733,9 +756,15 @@ echo(Bend_r = bend_r);
           " mm long, with a transition of " + display(spec.transition) +
           " mm. Overall length " + display(spec.total) + " mm.";
       }
+      let fit = "";
+      if (spec.optimize) {
+        fit = spec.measurement === "outer"
+          ? " The outer diameter is printed 0.2 mm smaller than " + display(spec.diameter) + " mm."
+          : " The inner diameter is printed 0.2 mm larger than " + display(spec.diameter) + " mm.";
+      }
       return (
         face + ", " + display(spec.tubeId) + " mm inside and " + display(spec.tubeOd) +
-        " mm outside, " + display(spec.length) + " mm long, " + place + ", " + tail
+        " mm outside, " + display(spec.length) + " mm long, " + place + ", " + tail + fit
       );
     }
 
@@ -744,6 +773,7 @@ echo(Bend_r = bend_r);
       source = source
         .replace(/^diameter = [^;]+;/m, "diameter = " + fmt(spec.diameter) + ";")
         .replace(/^measurement = "[^"]+";/m, 'measurement = "' + spec.measurement + '";')
+        .replace(/^optimize_print = [^;]+;/m, "optimize_print = " + (spec.optimize ? "true" : "false") + ";")
         .replace(/^wall_length = [^;]+;/m, "wall_length = " + fmt(spec.length) + ";")
         .replace(/^wall_thickness = [^;]+;/m, "wall_thickness = " + fmt(spec.thickness) + ";")
         .replace(/^alignment = "[^"]+";/m, 'alignment = "' + spec.alignment + '";')
@@ -751,7 +781,8 @@ echo(Bend_r = bend_r);
       const note =
         "// Tube " + spec.measurement + " diameter " + fmt(spec.diameter) +
         " mm, length " + fmt(spec.length) + " mm, wall " + fmt(spec.thickness) +
-        " mm, " + spec.alignment + ", angle " + fmt(spec.angle) + " deg.\n";
+        " mm, " + spec.alignment + ", angle " + fmt(spec.angle) + " deg" +
+        (spec.optimize ? ", print fit 0.2 mm" : "") + ".\n";
       return note + source;
     }
 
@@ -761,6 +792,7 @@ echo(Bend_r = bend_r);
         "-len" + fmt(spec.length) + "-wall" + fmt(spec.thickness);
       if (spec.alignment === "edge") name += "-edge";
       if (spec.angle !== 0) name += "-a" + fmt(spec.angle);
+      if (spec.optimize) name += "-fit";
       return name;
     }
 
@@ -1021,6 +1053,7 @@ echo(Bend_r = bend_r);
       document.querySelector('input[name="measurement"][value="' + measurement + '"]').checked = true;
       const alignment = paramLine("alignment");
       document.querySelector('input[name="alignment"][value="' + alignment + '"]').checked = true;
+      document.getElementById("optimize").checked = paramLine("optimize_print") === "true";
       document.getElementById("adapter-form").addEventListener("input", (event) => {
         if (event.target.id === "angle" && event.target.value !== "") {
           document.getElementById("angle-range").value = event.target.value;

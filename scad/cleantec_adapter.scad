@@ -3,9 +3,11 @@
 // The top end is a female CLEANTEC socket. The male plug on a Festool
 // D27 or D36 suction hose pushes in and twists to lock. The other end
 // is a tube. Set the tube diameter, whether that diameter is the inside
-// or the outside, the tube length, and the wall thickness. The tube can
-// stay centered or slide across until one outer wall lines up with the
-// socket, and it can leave the socket at an angle from -90 to 90 degrees.
+// or the outside, the tube length, and the wall thickness. Optimize for
+// 3D printing opens an inner diameter by 0.2 mm, or shrinks an outer
+// diameter by 0.2 mm. The tube can stay centered or slide across until
+// one outer wall lines up with the socket, and it can leave the socket
+// at an angle from -90 to 90 degrees.
 // Circles are divided into flats 0.25 mm wide, which is finer than a
 // 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
@@ -26,6 +28,10 @@ diameter = 28; // [1:0.1:200]
 
 // Which face of the tube `diameter` measures.
 measurement = "inner"; // [inner, outer]
+
+// Ease the chosen diameter by 0.2 mm for a typical FDM print.
+// An inner diameter is printed 0.2 mm larger. An outer diameter is printed 0.2 mm smaller.
+optimize_print = false;
 
 // Length of the straight tube, in millimetres.
 // The socket and the transition are added on top of this.
@@ -72,13 +78,17 @@ lip_h = 7;
 // Shelf centres in degrees. The last one is the shallow shelf.
 lip_centers = [0, 120, 240];
 
-tube_id = (measurement == "outer") ? diameter - 2 * wall_thickness : diameter;
-tube_od = (measurement == "outer") ? diameter : diameter + 2 * wall_thickness;
+allowance = optimize_print ? 0.2 : 0;
+sized = (measurement == "outer") ? diameter - allowance : diameter + allowance;
+tube_id = (measurement == "outer") ? sized - 2 * wall_thickness : sized;
+tube_od = (measurement == "outer") ? sized : sized + 2 * wall_thickness;
 
 assert(measurement == "inner" || measurement == "outer",
        "measurement must be \"inner\" or \"outer\"");
 assert(diameter > 0 && wall_length > 0 && wall_thickness > 0,
        "Diameter, length, and wall thickness must be positive.");
+assert(sized > 0,
+       "The print allowance removes the whole diameter. Increase it or turn optimization off.");
 assert(tube_id > 0.5,
        "Wall thickness leaves no airflow. Reduce it or increase the diameter.");
 assert(alignment == "center" || alignment == "edge",

@@ -2,12 +2,13 @@
 
 A small tool that writes an OpenSCAD model of a vacuum adapter. One end is a female Festool CLEANTEC socket. The male plug on a D27 or D36 suction hose pushes in and twists to lock. The other end is a tube.
 
-The tube is set with six values:
+The tube is set with seven values:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | Diameter | 28 mm | Size of the tube |
 | Inner or outer | Inner | Which face that diameter measures |
+| Optimize for 3D printing | Off | An inner diameter prints 0.2 mm larger, an outer diameter 0.2 mm smaller |
 | Tube length | 40 mm | Length of the straight tube |
 | Wall thickness | 3 mm | Thickness of the tube wall |
 | Position | Centered | Centered, or slid until one outer wall lines up with the socket |
@@ -35,10 +36,11 @@ A straight STL usually finishes within a minute. A bend takes longer. The cylind
 
 ```bash
 python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 --alignment edge --angle -45 -o adapter.scad
+python3 generate.py --diameter 28 --measurement outer --optimize-print -o adapter.scad
 python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 -o adapter.stl
 ```
 
-`--measurement` is `inner` or `outer`. `--alignment` is `center` or `edge`. `--angle` is degrees from -90 to 90. A `.stl` output renders the model with OpenSCAD. The command checks that the wall thickness still leaves a passage and that the angle is in range.
+`--measurement` is `inner` or `outer`. `--optimize-print` eases that diameter by 0.2 mm: an inner 28 mm becomes 28.2 mm, and an outer 28 mm becomes 27.8 mm. `--alignment` is `center` or `edge`. `--angle` is degrees from -90 to 90. A `.stl` output renders the model with OpenSCAD. The command checks that the wall thickness still leaves a passage and that the angle is in range.
 
 After changing `scad/cleantec_adapter.scad` or `web/page.template.html`, rebuild the page:
 

@@ -22,10 +22,12 @@ PLACEHOLDER = "___SCAD_SOURCE___"
 SERVE_HOST = "127.0.0.1"
 SERVE_PORT = 8765
 RENDER_LOCK = threading.Lock()
+PRINT_ALLOWANCE = 0.2
 
 PARAM_PATTERNS = {
     "diameter": re.compile(r"^diameter = [^;]+;", re.M),
     "measurement": re.compile(r'^measurement = "[^"]+";', re.M),
+    "optimize_print": re.compile(r"^optimize_print = [^;]+;", re.M),
     "wall_length": re.compile(r"^wall_length = [^;]+;", re.M),
     "wall_thickness": re.compile(r"^wall_thickness = [^;]+;", re.M),
     "alignment": re.compile(r'^alignment = "[^"]+";', re.M),
@@ -48,6 +50,17 @@ def tube_diameters(diameter: float, measurement: str, thickness: float) -> tuple
     raise ValueError('measurement must be "inner" or "outer".')
 
 
+def eased_diameter(diameter: float, measurement: str, optimize: bool) -> float:
+    if not optimize:
+        return diameter
+    eased = diameter - PRINT_ALLOWANCE if measurement == "outer" else diameter + PRINT_ALLOWANCE
+    if eased <= 0:
+        raise ValueError(
+            "The print allowance removes the whole diameter. Increase it or turn optimization off."
+        )
+    return eased
+
+
 def validate(
     diameter: float,
     measurement: str,
@@ -55,6 +68,7 @@ def validate(
     thickness: float,
     alignment: str = "center",
     angle: float = 0,
+    optimize: bool = False,
 ) -> tuple[float, float]:
     if measurement not in ("inner", "outer"):
         raise ValueError('measurement must be "inner" or "outer".')
@@ -65,7 +79,8 @@ def validate(
             raise ValueError(f"{name.capitalize()} must be a positive number.")
     if not math.isfinite(angle) or angle < -90 or angle > 90:
         raise ValueError("Angle must be from -90 to 90 degrees.")
-    tube_id, tube_od = tube_diameters(diameter, measurement, thickness)
+    sized = eased_diameter(diameter, measurement, optimize)
+    tube_id, tube_od = tube_diameters(sized, measurement, thickness)
     if tube_id <= 0.5:
         raise ValueError(
             "Wall thickness leaves no airflow. Reduce it or increase the diameter."
@@ -81,11 +96,13 @@ def substitute(
     thickness: float,
     alignment: str = "center",
     angle: float = 0,
+    optimize: bool = False,
 ) -> str:
-    validate(diameter, measurement, length, thickness, alignment, angle)
+    validate(diameter, measurement, length, thickness, alignment, angle, optimize)
     replacements = {
         "diameter": f"diameter = {fmt(diameter)};",
         "measurement": f'measurement = "{measurement}";',
+        "optimize_print": f"optimize_print = {'true' if optimize else 'false'};",
         "wall_length": f"wall_length = {fmt(length)};",
         "wall_thickness": f"wall_thickness = {fmt(thickness)};",
         "alignment": f'alignment = "{alignment}";',
@@ -96,10 +113,11 @@ def substitute(
         updated, count = pattern.subn(replacements[key], updated, count=1)
         if count != 1:
             raise RuntimeError(f"Could not find the {key} assignment in the OpenSCAD template.")
+    fit = f", print fit {fmt(PRINT_ALLOWANCE)} mm" if optimize else ""
     note = (
         f"// Tube {measurement} diameter {fmt(diameter)} mm, "
         f"length {fmt(length)} mm, wall {fmt(thickness)} mm, "
-        f"{alignment}, angle {fmt(angle)} deg.\n"
+        f"{alignment}, angle {fmt(angle)} deg{fit}.\n"
     )
     return note + updated
 
@@ -242,6 +260,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Bend between the socket and the tube, in degrees from -90 to 90 (default 0).",
     )
     parser.add_argument(
+        "--optimize-print",
+        action="store_true",
+        help="Ease the chosen diameter by 0.2 mm: an inner diameter prints larger, an outer diameter smaller.",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=Path,
@@ -276,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
             args.thickness,
             args.alignment,
             args.angle,
+            args.optimize_print,
         )
         if str(args.output) == "-":
             sys.stdout.write(text)

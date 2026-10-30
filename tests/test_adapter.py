@@ -145,11 +145,43 @@ class GenerateTests(unittest.TestCase):
         self.assertIn('id="download-stl"', page)
         self.assertIn("Angle must be from -90 to 90 degrees.", page)
         self.assertIn("facet = 0.25;", page)
-        self.assertIn('", angle " + fmt(spec.angle) + " deg.\\n"', page)
+        self.assertIn('", angle " + fmt(spec.angle) + " deg" +', page)
+        self.assertIn('id="optimize"', page)
+        self.assertIn(
+            "An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller.",
+            page,
+        )
+
+    def test_print_fit_eases_the_chosen_diameter(self):
+        source = generate.load_template()
+        inner = generate.substitute(source, 28, "inner", 40, 3, optimize=True)
+        self.assertIn("diameter = 28;", inner)
+        self.assertIn("optimize_print = true;", inner)
+        self.assertTrue(
+            inner.startswith(
+                "// Tube inner diameter 28 mm, length 40 mm, wall 3 mm, "
+                "center, angle 0 deg, print fit 0.2 mm.\n"
+            )
+        )
+        outer = generate.substitute(source, 28, "outer", 40, 3, optimize=True)
+        self.assertIn("optimize_print = true;", outer)
+        self.assertTrue(
+            outer.startswith(
+                "// Tube outer diameter 28 mm, length 40 mm, wall 3 mm, "
+                "center, angle 0 deg, print fit 0.2 mm.\n"
+            )
+        )
+        plain = generate.substitute(source, 28, "inner", 40, 3)
+        self.assertIn("optimize_print = false;", plain)
+        self.assertNotIn("print fit", plain)
+        with self.assertRaises(ValueError):
+            generate.substitute(source, 0.2, "outer", 40, 0.4, optimize=True)
 
 
 class RenderTests(unittest.TestCase):
-    def render_case(self, diameter, measurement, length, thickness, alignment="center", angle=0):
+    def render_case(
+        self, diameter, measurement, length, thickness, alignment="center", angle=0, optimize=False
+    ):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             scad = folder / "adapter.scad"
@@ -162,6 +194,7 @@ class RenderTests(unittest.TestCase):
                 thickness,
                 alignment,
                 angle,
+                optimize,
             )
             text = text.replace("resolution = 0;", "resolution = 48;", 1)
             scad.write_text(text, encoding="utf-8")
@@ -217,6 +250,26 @@ class RenderTests(unittest.TestCase):
         self.assertGreaterEqual(len(inner), 30)
         self.assertLess(int(np.sum(inner < 17.4)), 2)
         self.assertAlmostEqual(float(np.median(inner)), 18.1, delta=0.15)
+
+    def test_print_fit_opens_an_inner_diameter(self):
+        echoes, verts = self.render_case(28, "inner", 40, 3, optimize=True)
+        self.assertAlmostEqual(echoes["Tube_ID"], 28.2)
+        self.assertAlmostEqual(echoes["Tube_OD"], 34.2)
+        import numpy as np
+
+        mins, maxs = section_radii(verts, 20)
+        self.assertAlmostEqual(float(np.nanmin(mins)), 14.1, delta=0.15)
+        self.assertAlmostEqual(float(np.nanmax(maxs)), 17.1, delta=0.15)
+
+    def test_print_fit_shrinks_an_outer_diameter(self):
+        echoes, verts = self.render_case(28, "outer", 40, 3, optimize=True)
+        self.assertAlmostEqual(echoes["Tube_ID"], 21.8)
+        self.assertAlmostEqual(echoes["Tube_OD"], 27.8)
+        import numpy as np
+
+        mins, maxs = section_radii(verts, 20)
+        self.assertAlmostEqual(float(np.nanmin(mins)), 10.9, delta=0.15)
+        self.assertAlmostEqual(float(np.nanmax(maxs)), 13.9, delta=0.15)
 
     def test_outer_diameter_flares_past_the_socket(self):
         echoes, verts = self.render_case(60, "outer", 25, 3)
