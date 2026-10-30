@@ -360,22 +360,29 @@ bend_steps = max(6, round(abs(angle) / 8));
 bore_r = bore_d / 2;
 eps = 0.02;
 
-function smooth(t) = t * t * (3 - 2 * t);
-function path_pos(t) =
+// The edge shift is a straight taper before the bend. Folding that shift
+// into a short arc tilts the wall and pinches it, especially at small angles.
+lead_h = (alignment == "edge") ? transition_h : 0;
+
+function lead_pos(s) = [edge_offset * s, 0, -lead_h * s];
+function arc_pos(u) =
     let (
-        sweep = abs(angle) * t,
+        sweep = abs(angle) * u,
         side = angle < 0 ? -1 : 1
-    ) [
-        side * bend_r * (1 - cos(sweep)) + edge_offset * smooth(t),
+    ) lead_pos(1) + [
+        side * bend_r * (1 - cos(sweep)),
         0,
         -bend_r * sin(sweep)
     ];
-function path_dir(t) =
+function arc_dir(u) =
     let (
-        a = max(0, t - 0.001),
-        b = min(1, t + 0.001),
-        d = path_pos(b) - path_pos(a)
-    ) d;
+        sweep = abs(angle) * u,
+        side = angle < 0 ? -1 : 1
+    ) [side * sin(sweep), 0, -cos(sweep)];
+function arc_outer_r(u) =
+    lead_h > 0 ? tube_od / 2 : lerp(socket_od / 2, tube_od / 2, u);
+function arc_inner_r(u) =
+    lead_h > 0 ? tube_id / 2 : lerp(socket_exit_d / 2, tube_id / 2, u);
 function lerp(a, b, t) = a + (b - a) * t;
 
 module locking_lip(r_in, center_deg) {
@@ -492,16 +499,17 @@ module edge_adapter() {
     translate([0, 0, z_sock0]) socket_lips();
 }
 
-module station(t, radius) {
-    translate(path_pos(t))
-        orient_z_to(path_dir(t))
+module arc_station(u, radius) {
+    translate(arc_pos(u))
+        orient_z_to(arc_dir(u))
             cylinder(h = 0.8, r = radius, center = true);
 }
 
 // Socket base at the origin. A positive angle bends toward +X, a negative angle toward -X.
+// Along one edge, a straight taper reaches the flush wall before the arc begins.
 module bent_adapter() {
-    tube_dir = [sin(angle), 0, -cos(angle)];
-    tube_end = path_pos(1) + tube_dir * wall_length;
+    tube_dir = arc_dir(1);
+    tube_end = arc_pos(1) + tube_dir * wall_length;
     tz = tube_dir[2];
     rim = tube_od / 2 * sqrt(max(0, 1 - tz * tz));
     lowest = tube_end[2] - rim;
@@ -509,13 +517,19 @@ module bent_adapter() {
     translate([0, 0, -lowest]) {
         difference() {
             union() {
+                if (lead_h > 0)
+                    hull() {
+                        cylinder(h = 0.4, r = socket_od / 2, center = true);
+                        translate(lead_pos(1))
+                            cylinder(h = 0.4, r = tube_od / 2, center = true);
+                    }
                 for (i = [0 : bend_steps - 1]) {
                     hull() {
-                        station(i / bend_steps, lerp(socket_od / 2, tube_od / 2, i / bend_steps));
-                        station((i + 1) / bend_steps, lerp(socket_od / 2, tube_od / 2, (i + 1) / bend_steps));
+                        arc_station(i / bend_steps, arc_outer_r(i / bend_steps));
+                        arc_station((i + 1) / bend_steps, arc_outer_r((i + 1) / bend_steps));
                     }
                 }
-                translate(path_pos(1))
+                translate(arc_pos(1))
                     orient_z_to(tube_dir)
                         cylinder(h = wall_length, r = tube_od / 2);
                 translate([0, 0, -eps])
@@ -523,13 +537,20 @@ module bent_adapter() {
             }
 
             union() {
+                if (lead_h > 0)
+                    hull() {
+                        translate([0, 0, -0.2])
+                            cylinder(h = 0.4, r = socket_exit_d / 2, center = true);
+                        translate(lead_pos(1))
+                            cylinder(h = 0.4, r = tube_id / 2, center = true);
+                    }
                 for (i = [0 : bend_steps - 1]) {
                     hull() {
-                        station(i / bend_steps, lerp(socket_exit_d / 2, tube_id / 2, i / bend_steps));
-                        station((i + 1) / bend_steps, lerp(socket_exit_d / 2, tube_id / 2, (i + 1) / bend_steps));
+                        arc_station(i / bend_steps, arc_inner_r(i / bend_steps));
+                        arc_station((i + 1) / bend_steps, arc_inner_r((i + 1) / bend_steps));
                     }
                 }
-                translate(path_pos(1) - tube_dir * 0.4)
+                translate(arc_pos(1) - tube_dir * 0.4)
                     orient_z_to(tube_dir)
                         cylinder(h = wall_length + 1.4, r = tube_id / 2);
                 socket_void();
@@ -578,6 +599,7 @@ echo(Total_length = wall_length + transition_h + socket_h);
 echo(Edge_offset = edge_offset);
 echo(Angle = angle);
 echo(Bend_r = bend_r);
+echo(Lead_h = lead_h);
 
   </script>
   <script>
@@ -641,33 +663,34 @@ echo(Bend_r = bend_r);
     }
 
     // Same centerline as the OpenSCAD bend. Positive angles arc toward +X.
+    // Along one edge, the shift is a straight taper of length `lead` before the arc.
     function bendGeometry(spec) {
       const off = edgeOffsetOf(spec);
       const angle = spec.angle;
       const side = angle < 0 ? -1 : 1;
       const mag = Math.abs(angle);
       const bendR = Math.max(SOCKET.od, spec.tubeOd) * 0.8;
-      function smooth(t) { return t * t * (3 - 2 * t); }
+      const lead = spec.alignment === "edge" ? spec.transition : 0;
       function pos(t) {
         const sweep = mag * t;
         return [
-          side * bendR * (1 - scadCos(sweep)) + off * smooth(t),
-          -bendR * scadSin(sweep),
+          (lead > 0 ? off : 0) + side * bendR * (1 - scadCos(sweep)),
+          -lead - bendR * scadSin(sweep),
         ];
       }
       function tangent(t) {
-        const rad = mag * Math.PI / 180;
-        const dx = side * bendR * Math.sin(rad * t) * rad + off * 6 * t * (1 - t);
-        const dz = -bendR * Math.cos(rad * t) * rad;
-        const n = Math.hypot(dx, dz) || 1;
-        return [dx / n, dz / n];
+        const sweep = mag * t;
+        return [
+          side * Math.sin(sweep * Math.PI / 180),
+          -Math.cos(sweep * Math.PI / 180),
+        ];
       }
       const dir = [scadSin(angle), -scadCos(angle)];
       const end = pos(1);
       const tubeEnd = [end[0] + dir[0] * spec.length, end[1] + dir[1] * spec.length];
       const rim = (spec.tubeOd / 2) * Math.sqrt(Math.max(0, 1 - dir[1] * dir[1]));
       const lift = -(tubeEnd[1] - rim);
-      return { pos, tangent, dir, tubeEnd, lift, side };
+      return { pos, tangent, dir, tubeEnd, lift, side, lead, off };
     }
 
     function partSize(spec) {
@@ -691,9 +714,20 @@ echo(Bend_r = bend_r);
         box.maxZ = Math.max(box.maxZ, z + ez);
       }
       const steps = Math.max(24, Math.round(Math.abs(spec.angle)));
-      for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t);
+      if (g.lead > 0) {
+        for (let i = 0; i <= 8; i++) {
+          const s = i / 8;
+          add([g.off * s, -g.lead * s], [0, -1], sockR + (tubeR - sockR) * s);
+        }
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          add(g.pos(t), g.tangent(t), tubeR);
+        }
+      } else {
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t);
+        }
       }
       add(g.tubeEnd, g.dir, tubeR);
       box.minX = Math.min(box.minX, -sockR);
@@ -862,8 +896,8 @@ echo(Bend_r = bend_r);
         const t = i / steps;
         const p = g.pos(t);
         const n = inward(t);
-        const outerR = sockR + (tubeR - sockR) * t;
-        const innerR = exitR + (tubeRi - exitR) * t;
+        const outerR = g.lead > 0 ? tubeR : sockR + (tubeR - sockR) * t;
+        const innerR = g.lead > 0 ? tubeRi : exitR + (tubeRi - exitR) * t;
         outside.push(shift([p[0] - n[0] * outerR, p[1] - n[1] * outerR]));
         inside.push(shift([p[0] + n[0] * outerR, p[1] + n[1] * outerR]));
         outAir.push(shift([p[0] - n[0] * innerR, p[1] - n[1] * innerR]));
@@ -898,15 +932,17 @@ echo(Bend_r = bend_r);
       const outer = [
         shift([-sockR, SOCKET.h]),
         shift([-sockR, 0]),
-        ...leftWall.slice(1),
+        ...leftWall,
         leftEnd,
         rightEnd,
         ...rightWall.slice().reverse(),
+        shift([sockR, 0]),
         shift([sockR, SOCKET.h]),
       ];
       const inner = [
         leftEndAir,
         ...leftAir.slice().reverse(),
+        shift([-exitR, 0]),
         shift([-boreR, 6]),
         shift([-boreR, 40]),
         shift([-mouthR, SOCKET.h]),
@@ -914,7 +950,7 @@ echo(Bend_r = bend_r);
         shift([boreR, 40]),
         shift([boreR, 6]),
         shift([exitR, 0]),
-        ...rightAir.slice(1),
+        ...rightAir,
         rightEndAir,
       ];
       return { outer, inner };
