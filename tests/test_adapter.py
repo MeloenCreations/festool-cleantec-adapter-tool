@@ -369,48 +369,52 @@ class RenderTests(unittest.TestCase):
     def test_edge_and_right_angle_render_together(self):
         echoes, verts = self.render_case(28, "inner", 40, 3, alignment="edge", angle=90)
         points = verts.reshape(-1, 3)
-        self.assertAlmostEqual(echoes["Lead_h"], 8)
-        self.assertAlmostEqual(
-            float(points[:, 0].max()),
-            echoes["Bend_r"] + echoes["Edge_offset"] + 40,
-            delta=0.1,
-        )
-        self.assertAlmostEqual(
-            float(points[:, 2].max()),
-            echoes["Lead_h"] + echoes["Bend_r"] + echoes["Tube_OD"] / 2 + 45.4,
-            delta=0.1,
-        )
+        self.assertGreater(echoes["Blend_len"], 30)
+        self.assertAlmostEqual(float(points[:, 2].min()), 0, delta=0.1)
+        self.assertGreater(float(points[:, 0].max()), 40)
+        self.assertLess(float(points[:, 0].min()), -20)
 
     def test_edge_and_small_angle_do_not_pinch_the_wall(self):
-        echoes, verts = self.render_case(28, "inner", 40, 3, alignment="edge", angle=6)
-        import math
-
-        import numpy as np
-
-        lead = echoes["Lead_h"]
-        bend_r = echoes["Bend_r"]
-        offset = echoes["Edge_offset"]
-        tube_r = echoes["Tube_OD"] / 2
-        self.assertAlmostEqual(lead, 8)
-        self.assertAlmostEqual(offset, 5.25)
-        angle = 6 * math.pi / 180
-        tube_end_z = -lead - bend_r * math.sin(angle) - math.cos(angle) * 40
-        rim = tube_r * math.sqrt(max(0, 1 - math.cos(angle) ** 2))
-        lift = -(tube_end_z - rim)
-
-        # Midway along the straight taper the flush wall is still the socket's wall,
-        # and the passage stays open by about the wall thickness.
-        center_x = offset * 0.5
-        outer_r = 22.25 + (tube_r - 22.25) * 0.5
-        inner_r = 16 + (echoes["Tube_ID"] / 2 - 16) * 0.5
-        radii = _radii_about(verts, lift - lead * 0.5, center_x)
-        self.assertGreater(len(radii), 20)
-        self.assertAlmostEqual(float(radii.max()), outer_r, delta=0.35)
-        self.assertAlmostEqual(float(radii.min()), inner_r, delta=0.35)
-        self.assertGreater(float(radii.max() - radii.min()), 2.5)
-
+        echoes, verts = self.render_case(28, "inner", 40, 3, alignment="edge", angle=7)
+        self.assertAlmostEqual(echoes["Edge_offset"], 5.25)
+        self.assertGreater(echoes["Blend_len"], 30)
         points = verts.reshape(-1, 3)
         self.assertAlmostEqual(float(points[:, 2].min()), 0, delta=0.08)
+        self.assertAlmostEqual(float(points[:, 0].min()), -22.25, delta=0.15)
+        # A side cut through the straight tube and the blend is one open ring.
+        # The old short shift folded that ring into a spike.
+        for z in (12, 30, 55):
+            walls = self._side_walls(verts, z)
+            self.assertEqual(len(walls), 4, msg=f"z={z}: {walls}")
+            self.assertGreater(walls[1] - walls[0], 2.4, msg=f"z={z}")
+            self.assertGreater(walls[-1] - walls[-2], 2.4, msg=f"z={z}")
+            self.assertGreater(walls[-2] - walls[1], 24, msg=f"z={z}")
+
+    def _side_walls(self, verts, z, y=0.25, gap=0.45):
+        xs = []
+        for tri in verts:
+            yy = tri[:, 1]
+            if (yy > y).all() or (yy < y).all():
+                continue
+            hits = []
+            for i in range(3):
+                a = tri[i]
+                b = tri[(i + 1) % 3]
+                if (a[1] - y) * (b[1] - y) < 0:
+                    t = (y - a[1]) / (b[1] - a[1])
+                    hits.append(a + (b - a) * t)
+            if len(hits) != 2:
+                continue
+            a, b = hits
+            if (a[2] - z) * (b[2] - z) < 0:
+                t = (z - a[2]) / (b[2] - a[2])
+                xs.append(float(a[0] + (b[0] - a[0]) * t))
+        xs.sort()
+        walls = []
+        for x in xs:
+            if not walls or x - walls[-1] > gap:
+                walls.append(x)
+        return walls
 
     def test_angle_limit_is_enforced_by_the_model(self):
         with tempfile.TemporaryDirectory() as tmp:

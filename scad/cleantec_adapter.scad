@@ -112,16 +112,40 @@ bend_steps = max(6, round(abs(angle) / 8));
 bore_r = bore_d / 2;
 eps = 0.02;
 
-// The edge shift is a straight taper before the bend. Folding that shift
-// into a short arc tilts the wall and pinches it, especially at small angles.
-lead_h = (alignment == "edge") ? transition_h : 0;
+// Along one edge the centerline eases onto the flush wall while it turns.
+// The run is long enough that this bend stays gentler than the tube radius.
+// A short shift kinks both walls, especially at a small angle.
+blend_len = (alignment == "edge")
+    ? max(
+        transition_h,
+        max(
+            sqrt(8 * abs(edge_offset) * tube_od),
+            bend_r * abs(angle) * 0.01745329252
+        )
+    )
+    : 0;
+blend_steps = max(16, round(blend_len / 2));
 
-function lead_pos(s) = [edge_offset * s, 0, -lead_h * s];
+function smooth(t) = t * t * (3 - 2 * t);
+function lerp(a, b, t) = a + (b - a) * t;
+function blend_delta(i) =
+    let (
+        s0 = (i - 1) / blend_steps,
+        s1 = i / blend_steps,
+        heading = angle * smooth((s0 + s1) / 2)
+    ) [
+        blend_len * sin(heading) / blend_steps + edge_offset * (smooth(s1) - smooth(s0)),
+        0,
+        -blend_len * cos(heading) / blend_steps
+    ];
+function blend_pos(i) = i <= 0 ? [0, 0, 0] : blend_pos(i - 1) + blend_delta(i);
+function blend_outer_r(i) = lerp(socket_od / 2, tube_od / 2, smooth(i / blend_steps));
+function blend_inner_r(i) = lerp(socket_exit_d / 2, tube_id / 2, smooth(i / blend_steps));
 function arc_pos(u) =
     let (
         sweep = abs(angle) * u,
         side = angle < 0 ? -1 : 1
-    ) lead_pos(1) + [
+    ) [
         side * bend_r * (1 - cos(sweep)),
         0,
         -bend_r * sin(sweep)
@@ -131,11 +155,8 @@ function arc_dir(u) =
         sweep = abs(angle) * u,
         side = angle < 0 ? -1 : 1
     ) [side * sin(sweep), 0, -cos(sweep)];
-function arc_outer_r(u) =
-    lead_h > 0 ? tube_od / 2 : lerp(socket_od / 2, tube_od / 2, u);
-function arc_inner_r(u) =
-    lead_h > 0 ? tube_id / 2 : lerp(socket_exit_d / 2, tube_id / 2, u);
-function lerp(a, b, t) = a + (b - a) * t;
+function arc_outer_r(u) = lerp(socket_od / 2, tube_od / 2, u);
+function arc_inner_r(u) = lerp(socket_exit_d / 2, tube_id / 2, u);
 
 module locking_lip(r_in, center_deg) {
     $fn = resolution;
@@ -257,11 +278,21 @@ module arc_station(u, radius) {
             cylinder(h = 0.8, r = radius, center = true);
 }
 
+module disk_at(pos, dir, radius) {
+    translate(pos)
+        orient_z_to(dir)
+            cylinder(h = 0.8, r = radius, center = true);
+}
+
 // Socket base at the origin. A positive angle bends toward +X, a negative angle toward -X.
-// Along one edge, a straight taper reaches the flush wall before the arc begins.
+// Along one edge, one smooth curve shifts the tube onto the flush wall as it turns.
 module bent_adapter() {
-    tube_dir = arc_dir(1);
-    tube_end = arc_pos(1) + tube_dir * wall_length;
+    edge = alignment == "edge";
+    tube_dir = edge
+        ? blend_delta(blend_steps) / norm(blend_delta(blend_steps))
+        : arc_dir(1);
+    tube_origin = edge ? blend_pos(blend_steps) : arc_pos(1);
+    tube_end = tube_origin + tube_dir * wall_length;
     tz = tube_dir[2];
     rim = tube_od / 2 * sqrt(max(0, 1 - tz * tz));
     lowest = tube_end[2] - rim;
@@ -269,19 +300,22 @@ module bent_adapter() {
     translate([0, 0, -lowest]) {
         difference() {
             union() {
-                if (lead_h > 0)
-                    hull() {
-                        cylinder(h = 0.4, r = socket_od / 2, center = true);
-                        translate(lead_pos(1))
-                            cylinder(h = 0.4, r = tube_od / 2, center = true);
+                if (edge) {
+                    for (i = [0 : blend_steps - 1]) {
+                        hull() {
+                            disk_at(blend_pos(i), blend_delta(i + 1), blend_outer_r(i));
+                            disk_at(blend_pos(i + 1), blend_delta(min(blend_steps, i + 2)), blend_outer_r(i + 1));
+                        }
                     }
-                for (i = [0 : bend_steps - 1]) {
-                    hull() {
-                        arc_station(i / bend_steps, arc_outer_r(i / bend_steps));
-                        arc_station((i + 1) / bend_steps, arc_outer_r((i + 1) / bend_steps));
+                } else {
+                    for (i = [0 : bend_steps - 1]) {
+                        hull() {
+                            arc_station(i / bend_steps, arc_outer_r(i / bend_steps));
+                            arc_station((i + 1) / bend_steps, arc_outer_r((i + 1) / bend_steps));
+                        }
                     }
                 }
-                translate(arc_pos(1))
+                translate(tube_origin)
                     orient_z_to(tube_dir)
                         cylinder(h = wall_length, r = tube_od / 2);
                 translate([0, 0, -eps])
@@ -289,20 +323,22 @@ module bent_adapter() {
             }
 
             union() {
-                if (lead_h > 0)
-                    hull() {
-                        translate([0, 0, -0.2])
-                            cylinder(h = 0.4, r = socket_exit_d / 2, center = true);
-                        translate(lead_pos(1))
-                            cylinder(h = 0.4, r = tube_id / 2, center = true);
+                if (edge) {
+                    for (i = [0 : blend_steps - 1]) {
+                        hull() {
+                            disk_at(blend_pos(i), blend_delta(i + 1), blend_inner_r(i));
+                            disk_at(blend_pos(i + 1), blend_delta(min(blend_steps, i + 2)), blend_inner_r(i + 1));
+                        }
                     }
-                for (i = [0 : bend_steps - 1]) {
-                    hull() {
-                        arc_station(i / bend_steps, arc_inner_r(i / bend_steps));
-                        arc_station((i + 1) / bend_steps, arc_inner_r((i + 1) / bend_steps));
+                } else {
+                    for (i = [0 : bend_steps - 1]) {
+                        hull() {
+                            arc_station(i / bend_steps, arc_inner_r(i / bend_steps));
+                            arc_station((i + 1) / bend_steps, arc_inner_r((i + 1) / bend_steps));
+                        }
                     }
                 }
-                translate(arc_pos(1) - tube_dir * 0.4)
+                translate(tube_origin - tube_dir * 0.4)
                     orient_z_to(tube_dir)
                         cylinder(h = wall_length + 1.4, r = tube_id / 2);
                 socket_void();
@@ -351,4 +387,4 @@ echo(Total_length = wall_length + transition_h + socket_h);
 echo(Edge_offset = edge_offset);
 echo(Angle = angle);
 echo(Bend_r = bend_r);
-echo(Lead_h = lead_h);
+echo(Blend_len = blend_len);

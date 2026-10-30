@@ -308,20 +308,53 @@ ___SCAD_SOURCE___
       return spec.alignment === "edge" ? (SOCKET.od - spec.tubeOd) / 2 : 0;
     }
 
+    function smooth(s) { return s * s * (3 - 2 * s); }
+
     // Same centerline as the OpenSCAD bend. Positive angles arc toward +X.
-    // Along one edge, the shift is a straight taper of length `lead` before the arc.
+    // Along one edge, the shift and the turn share one smooth curve so the
+    // wall does not kink at a small angle.
     function bendGeometry(spec) {
       const off = edgeOffsetOf(spec);
       const angle = spec.angle;
       const side = angle < 0 ? -1 : 1;
       const mag = Math.abs(angle);
       const bendR = Math.max(SOCKET.od, spec.tubeOd) * 0.8;
-      const lead = spec.alignment === "edge" ? spec.transition : 0;
+      const shiftLen = Math.sqrt(8 * Math.abs(off) * spec.tubeOd);
+      const arcLen = bendR * mag * Math.PI / 180;
+      const blend = spec.alignment === "edge"
+        ? Math.max(spec.transition, shiftLen, arcLen)
+        : 0;
+      if (blend > 0) {
+        const steps = Math.max(24, Math.round(blend / 1.5));
+        const centers = [[0, 0]];
+        const tangents = [];
+        let x = 0;
+        let z = 0;
+        for (let i = 1; i <= steps; i++) {
+          const s0 = (i - 1) / steps;
+          const s1 = i / steps;
+          const heading = angle * smooth((s0 + s1) / 2) * Math.PI / 180;
+          const dx = blend * Math.sin(heading) / steps + off * (smooth(s1) - smooth(s0));
+          const dz = -blend * Math.cos(heading) / steps;
+          x += dx;
+          z += dz;
+          centers.push([x, z]);
+          const len = Math.hypot(dx, dz) || 1;
+          tangents.push([dx / len, dz / len]);
+        }
+        tangents.unshift(tangents[0]);
+        const dir = tangents[tangents.length - 1];
+        const end = centers[centers.length - 1];
+        const tubeEnd = [end[0] + dir[0] * spec.length, end[1] + dir[1] * spec.length];
+        const rim = (spec.tubeOd / 2) * Math.sqrt(Math.max(0, 1 - dir[1] * dir[1]));
+        const lift = -(tubeEnd[1] - rim);
+        return { blend, centers, tangents, dir, tubeEnd, lift, side, off, bendR, steps };
+      }
       function pos(t) {
         const sweep = mag * t;
         return [
-          (lead > 0 ? off : 0) + side * bendR * (1 - scadCos(sweep)),
-          -lead - bendR * scadSin(sweep),
+          side * bendR * (1 - scadCos(sweep)),
+          -bendR * scadSin(sweep),
         ];
       }
       function tangent(t) {
@@ -336,7 +369,7 @@ ___SCAD_SOURCE___
       const tubeEnd = [end[0] + dir[0] * spec.length, end[1] + dir[1] * spec.length];
       const rim = (spec.tubeOd / 2) * Math.sqrt(Math.max(0, 1 - dir[1] * dir[1]));
       const lift = -(tubeEnd[1] - rim);
-      return { pos, tangent, dir, tubeEnd, lift, side, lead, off };
+      return { pos, tangent, dir, tubeEnd, lift, side, blend, off, bendR };
     }
 
     function partSize(spec) {
@@ -359,17 +392,13 @@ ___SCAD_SOURCE___
         box.minZ = Math.min(box.minZ, z - ez);
         box.maxZ = Math.max(box.maxZ, z + ez);
       }
-      const steps = Math.max(24, Math.round(Math.abs(spec.angle)));
-      if (g.lead > 0) {
-        for (let i = 0; i <= 8; i++) {
-          const s = i / 8;
-          add([g.off * s, -g.lead * s], [0, -1], sockR + (tubeR - sockR) * s);
-        }
-        for (let i = 0; i <= steps; i++) {
-          const t = i / steps;
-          add(g.pos(t), g.tangent(t), tubeR);
+      if (g.blend > 0) {
+        for (let i = 0; i <= g.steps; i++) {
+          const outerR = sockR + (tubeR - sockR) * smooth(i / g.steps);
+          add(g.centers[i], g.tangents[i], outerR);
         }
       } else {
+        const steps = Math.max(24, Math.round(Math.abs(spec.angle)));
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
           add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t);
@@ -529,6 +558,55 @@ ___SCAD_SOURCE___
       const g = bendGeometry(spec);
       const steps = Math.max(12, Math.round(Math.abs(spec.angle)));
       function shift(point) { return [point[0], point[1] + g.lift]; }
+      if (g.blend > 0) {
+        const left = [];
+        const right = [];
+        const leftAir = [];
+        const rightAir = [];
+        for (let i = 0; i <= g.steps; i++) {
+          const p = g.centers[i];
+          const tangent = g.tangents[i];
+          const n = [-tangent[1], tangent[0]];
+          const eased = smooth(i / g.steps);
+          const outerR = sockR + (tubeR - sockR) * eased;
+          const innerR = exitR + (tubeRi - exitR) * eased;
+          left.push(shift([p[0] - n[0] * outerR, p[1] - n[1] * outerR]));
+          right.push(shift([p[0] + n[0] * outerR, p[1] + n[1] * outerR]));
+          leftAir.push(shift([p[0] - n[0] * innerR, p[1] - n[1] * innerR]));
+          rightAir.push(shift([p[0] + n[0] * innerR, p[1] + n[1] * innerR]));
+        }
+        const nEnd = [-g.dir[1], g.dir[0]];
+        const endLeft = shift([g.tubeEnd[0] - nEnd[0] * tubeR, g.tubeEnd[1] - nEnd[1] * tubeR]);
+        const endRight = shift([g.tubeEnd[0] + nEnd[0] * tubeR, g.tubeEnd[1] + nEnd[1] * tubeR]);
+        const endLeftAir = shift([
+          g.tubeEnd[0] - nEnd[0] * tubeRi, g.tubeEnd[1] - nEnd[1] * tubeRi,
+        ]);
+        const endRightAir = shift([
+          g.tubeEnd[0] + nEnd[0] * tubeRi, g.tubeEnd[1] + nEnd[1] * tubeRi,
+        ]);
+        return {
+          outer: [
+            shift([-sockR, SOCKET.h]),
+            ...left,
+            endLeft,
+            endRight,
+            ...right.slice().reverse(),
+            shift([sockR, SOCKET.h]),
+          ],
+          inner: [
+            endLeftAir,
+            ...leftAir.slice().reverse(),
+            shift([-boreR, 6]),
+            shift([-boreR, 40]),
+            shift([-mouthR, SOCKET.h]),
+            shift([mouthR, SOCKET.h]),
+            shift([boreR, 40]),
+            shift([boreR, 6]),
+            ...rightAir,
+            endRightAir,
+          ],
+        };
+      }
       // Points to the inside of the elbow. At the socket this is +X for a positive angle.
       function inward(t) {
         const [tx, tz] = g.tangent(t);
@@ -542,8 +620,8 @@ ___SCAD_SOURCE___
         const t = i / steps;
         const p = g.pos(t);
         const n = inward(t);
-        const outerR = g.lead > 0 ? tubeR : sockR + (tubeR - sockR) * t;
-        const innerR = g.lead > 0 ? tubeRi : exitR + (tubeRi - exitR) * t;
+        const outerR = sockR + (tubeR - sockR) * t;
+        const innerR = exitR + (tubeRi - exitR) * t;
         outside.push(shift([p[0] - n[0] * outerR, p[1] - n[1] * outerR]));
         inside.push(shift([p[0] + n[0] * outerR, p[1] + n[1] * outerR]));
         outAir.push(shift([p[0] - n[0] * innerR, p[1] - n[1] * innerR]));
