@@ -5,7 +5,9 @@
 // is a tube. Set the tube diameter, whether that diameter is the inside
 // or the outside, the tube length, and the wall thickness. The tube can
 // stay centered or slide across until one outer wall lines up with the
-// socket, and it can leave the socket at an angle up to 90 degrees.
+// socket, and it can leave the socket at an angle from -90 to 90 degrees.
+// Circles are divided into flats 0.25 mm wide, which is finer than a
+// 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
 // The socket follows the real plug: a 36.2 mm bore and three locking
 // shelves. Proportions were measured from Meister Edel's reference
@@ -36,12 +38,17 @@ wall_thickness = 3; // [0.4:0.1:20]
 alignment = "center"; // [center, edge]
 
 // Bend between the socket axis and the tube, in degrees.
-// 0 is straight. 90 is a right angle.
-angle = 0; // [0:1:90]
+// 0 is straight. Positive bends toward the flush edge, negative the other way.
+angle = 0; // [-90:1:90]
 
 /* [Print] */
-// Circle smoothness. 96 is a good balance of roundness and render time.
-resolution = 96; // [48:16:192]
+// Longest flat on a circle, in millimetres.
+// 0.25 mm is finer than a 0.4 mm nozzle line, so a Bambu H2D prints the
+// cylinders round instead of as a polygon. Use 0.15 mm with a 0.2 mm nozzle.
+facet = 0.25; // [0.1:0.05:1]
+
+// Circle sides. 0 follows facet. A positive number forces that many sides.
+resolution = 0; // [0:16:720]
 
 /* [Hidden] */
 // Female CLEANTEC socket, in millimetres.
@@ -76,8 +83,9 @@ assert(tube_id > 0.5,
        "Wall thickness leaves no airflow. Reduce it or increase the diameter.");
 assert(alignment == "center" || alignment == "edge",
        "alignment must be \"center\" or \"edge\"");
-assert(angle >= 0 && angle <= 90,
-       "Angle must be from 0 to 90 degrees.");
+assert(angle >= -90 && angle <= 90,
+       "Angle must be from -90 to 90 degrees.");
+assert(facet > 0, "Facet size must be positive.");
 
 // Long enough that the outside cone stays within about 35 degrees of vertical.
 transition_h = max(
@@ -89,17 +97,21 @@ transition_h = max(
 edge_offset = (alignment == "edge") ? (socket_od - tube_od) / 2 : 0;
 // Centerline radius of a bend. Large enough that the passage stays open.
 bend_r = max(socket_od, tube_od) * 0.8;
-bend_steps = max(6, round(angle / 8));
+bend_steps = max(6, round(abs(angle) / 8));
 
 bore_r = bore_d / 2;
 eps = 0.02;
 
 function smooth(t) = t * t * (3 - 2 * t);
-function path_pos(t) = [
-    bend_r * (1 - cos(angle * t)) + edge_offset * smooth(t),
-    0,
-    -bend_r * sin(angle * t)
-];
+function path_pos(t) =
+    let (
+        sweep = abs(angle) * t,
+        side = angle < 0 ? -1 : 1
+    ) [
+        side * bend_r * (1 - cos(sweep)) + edge_offset * smooth(t),
+        0,
+        -bend_r * sin(sweep)
+    ];
 function path_dir(t) =
     let (
         a = max(0, t - 0.001),
@@ -228,7 +240,7 @@ module station(t, radius) {
             cylinder(h = 0.8, r = radius, center = true);
 }
 
-// Socket base at the origin, tube bending toward +X and then running straight.
+// Socket base at the origin. A positive angle bends toward +X, a negative angle toward -X.
 module bent_adapter() {
     tube_dir = [sin(angle), 0, -cos(angle)];
     tube_end = path_pos(1) + tube_dir * wall_length;
@@ -270,14 +282,33 @@ module bent_adapter() {
     }
 }
 
-module adapter() {
-    $fn = resolution;
+module adapter_body() {
     if (angle == 0 && alignment != "edge")
         centered_adapter();
     else if (angle == 0)
         edge_adapter();
     else
         bent_adapter();
+}
+
+module forced_resolution() {
+    $fn = resolution;
+    children();
+}
+
+// Flats no longer than `facet`, and no coarser than 0.5 degrees.
+module smooth_resolution() {
+    $fn = 0;
+    $fa = 0.5;
+    $fs = facet;
+    children();
+}
+
+module adapter() {
+    if (resolution > 0)
+        forced_resolution() adapter_body();
+    else
+        smooth_resolution() adapter_body();
 }
 
 adapter();

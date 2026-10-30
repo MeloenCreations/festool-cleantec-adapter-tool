@@ -11,15 +11,21 @@ The tube is set with six values:
 | Tube length | 40 mm | Length of the straight tube |
 | Wall thickness | 3 mm | Thickness of the tube wall |
 | Position | Centered | Centered, or slid until one outer wall lines up with the socket |
-| Angle | 0° | Bend away from the socket axis, from 0° (straight) to 90° (a right angle) |
+| Angle | 0° | Bend from −90° to 90°. Positive bends toward the flush edge |
 
 The socket keeps the CLEANTEC shape. A short cone joins it to the tube. With the defaults the tube is 28 mm inside and 34 mm outside.
 
 ## Use the page
 
-Open `index.html` in a browser. The section drawing updates as you change the numbers. **Download SCAD file** saves a model with those values filled in.
+Open `index.html` in a browser. The section drawing updates as you change the numbers. **Download SCAD file** saves the OpenSCAD source.
 
-Open that file in [OpenSCAD](https://openscad.org/), press F6 to render, and export an STL.
+**Download STL file** renders that same model. Start the local helper, then open the address it prints:
+
+```bash
+python3 generate.py --serve
+```
+
+A straight STL usually finishes within a minute. A bend takes longer. The cylinders are divided into flats 0.25 mm wide, which is finer than a 0.4 mm nozzle line, so a Bambu H2D prints them round.
 
 ## Use OpenSCAD directly
 
@@ -28,10 +34,11 @@ Open that file in [OpenSCAD](https://openscad.org/), press F6 to render, and exp
 ## Use the command line
 
 ```bash
-python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 --alignment edge --angle 45 -o adapter.scad
+python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 --alignment edge --angle -45 -o adapter.scad
+python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 -o adapter.stl
 ```
 
-`--measurement` is `inner` or `outer`. `--alignment` is `center` or `edge`. `--angle` is degrees from 0 to 90. The command checks that the wall thickness still leaves a passage and that the angle is in range, then writes the OpenSCAD file.
+`--measurement` is `inner` or `outer`. `--alignment` is `center` or `edge`. `--angle` is degrees from -90 to 90. A `.stl` output renders the model with OpenSCAD. The command checks that the wall thickness still leaves a passage and that the angle is in range.
 
 After changing `scad/cleantec_adapter.scad` or `web/page.template.html`, rebuild the page:
 

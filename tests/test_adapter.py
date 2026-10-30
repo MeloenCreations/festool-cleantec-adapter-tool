@@ -9,7 +9,9 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -128,16 +130,21 @@ class GenerateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             generate.substitute(source, 28, "inner", 40, 3, "center", 91)
         with self.assertRaises(ValueError):
-            generate.substitute(source, 28, "inner", 40, 3, angle=-1)
+            generate.substitute(source, 28, "inner", 40, 3, angle=-91)
         with self.assertRaises(ValueError):
             generate.substitute(source, 28, "inner", 40, 3, "sideways")
+        updated = generate.substitute(source, 28, "inner", 40, 3, angle=-90)
+        self.assertIn("angle = -90;", updated)
         generate.substitute(source, 28, "inner", 40, 3, angle=90)
 
     def test_page_offers_edge_and_angle(self):
         page = generate.build_page()
         self.assertIn('name="alignment" value="edge"', page)
         self.assertIn('id="angle"', page)
-        self.assertIn("Angle must be from 0 to 90 degrees.", page)
+        self.assertIn('min="-90"', page)
+        self.assertIn('id="download-stl"', page)
+        self.assertIn("Angle must be from -90 to 90 degrees.", page)
+        self.assertIn("facet = 0.25;", page)
         self.assertIn('", angle " + fmt(spec.angle) + " deg.\\n"', page)
 
 
@@ -156,7 +163,7 @@ class RenderTests(unittest.TestCase):
                 alignment,
                 angle,
             )
-            text = text.replace("resolution = 96;", "resolution = 48;", 1)
+            text = text.replace("resolution = 0;", "resolution = 48;", 1)
             scad.write_text(text, encoding="utf-8")
             output = render(scad, stl)
             return echo_numbers(output), read_stl(stl)
@@ -312,6 +319,75 @@ class RenderTests(unittest.TestCase):
             )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("90", result.stderr + result.stdout)
+
+    def test_negative_angle_bends_the_other_way(self):
+        echoes, verts = self.render_case(28, "inner", 40, 3, angle=-90)
+        points = verts.reshape(-1, 3)
+        bend_r = echoes["Bend_r"]
+        self.assertAlmostEqual(float(points[:, 0].min()), -(bend_r + 40), delta=0.05)
+        self.assertAlmostEqual(float(points[:, 0].max()), 22.25, delta=0.05)
+        self.assertAlmostEqual(
+            float(points[:, 2].max()), bend_r + echoes["Tube_OD"] / 2 + 45.4, delta=0.05
+        )
+        self.assertAlmostEqual(float(points[:, 2].min()), 0, delta=0.05)
+
+    def test_default_circles_are_fine_enough_to_print_round(self):
+        text = generate.substitute(generate.load_template(), 28, "inner", 40, 3)
+        self.assertIn("$fs = facet;", text)
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            scad = folder / "adapter.scad"
+            stl = folder / "adapter.stl"
+            scad.write_text(text, encoding="utf-8")
+            render(scad, stl)
+            verts = read_stl(stl)
+        import numpy as np
+
+        z = 20
+        radii = []
+        for tri in verts:
+            zz = tri[:, 2]
+            if (zz >= z).all() or (zz < z).all():
+                continue
+            for i in range(3):
+                a = tri[i]
+                b = tri[(i + 1) % 3]
+                if (a[2] - z) * (b[2] - z) < 0:
+                    t = (z - a[2]) / (b[2] - a[2])
+                    point = a + (b - a) * t
+                    radius = float(np.hypot(point[0], point[1]))
+                    if radius > 16.9:
+                        radii.append((float(np.degrees(np.arctan2(point[1], point[0])) % 360), radius))
+        angles = np.array(sorted(angle for angle, radius in radii if radius > 16.98))
+        steps = np.diff(angles)
+        steps = steps[steps > 0.05]
+        chord = 2 * 17 * np.sin(np.median(steps) * np.pi / 360)
+        # Flats of about 1 mm (the old 96-side circles) show on a Bambu H2D.
+        self.assertLess(float(chord), 0.35)
+        self.assertGreater(len(steps), 200)
+
+    def test_server_returns_an_stl(self):
+        text = generate.substitute(generate.load_template(), 28, "inner", 40, 3)
+        text = text.replace("resolution = 0;", "resolution = 24;", 1)
+        server = generate.make_server(0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{server.server_address[1]}/stl",
+                data=text.encode("utf-8"),
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=60) as response:
+                data = response.read()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
+        finally:
+            server.shutdown()
+            server.server_close()
+        count = struct.unpack_from("<I", data, 80)[0]
+        self.assertGreater(count, 100)
+        self.assertEqual(len(data), 84 + count * 50)
 
 
 if __name__ == "__main__":

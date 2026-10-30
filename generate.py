@@ -5,8 +5,13 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import re
+import subprocess
 import sys
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -14,6 +19,9 @@ SCAD_PATH = ROOT / "scad" / "cleantec_adapter.scad"
 PAGE_TEMPLATE = ROOT / "web" / "page.template.html"
 INDEX_PATH = ROOT / "index.html"
 PLACEHOLDER = "___SCAD_SOURCE___"
+SERVE_HOST = "127.0.0.1"
+SERVE_PORT = 8765
+RENDER_LOCK = threading.Lock()
 
 PARAM_PATTERNS = {
     "diameter": re.compile(r"^diameter = [^;]+;", re.M),
@@ -55,8 +63,8 @@ def validate(
     for name, value in (("diameter", diameter), ("length", length), ("wall thickness", thickness)):
         if not math.isfinite(value) or value <= 0:
             raise ValueError(f"{name.capitalize()} must be a positive number.")
-    if not math.isfinite(angle) or angle < 0 or angle > 90:
-        raise ValueError("Angle must be from 0 to 90 degrees.")
+    if not math.isfinite(angle) or angle < -90 or angle > 90:
+        raise ValueError("Angle must be from -90 to 90 degrees.")
     tube_id, tube_od = tube_diameters(diameter, measurement, thickness)
     if tube_id <= 0.5:
         raise ValueError(
@@ -100,6 +108,106 @@ def load_template() -> str:
     return SCAD_PATH.read_text(encoding="utf-8")
 
 
+def render_stl(scad_text: str, dest: Path) -> None:
+    """Render an OpenSCAD model to a binary STL."""
+    with RENDER_LOCK:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            scad_path = folder / "adapter.scad"
+            stl_path = folder / "adapter.stl"
+            scad_path.write_text(scad_text, encoding="utf-8")
+            env = os.environ.copy()
+            env["QT_QPA_PLATFORM"] = "offscreen"
+            result = subprocess.run(
+                ["openscad", "--export-format=binstl", "-o", str(stl_path), str(scad_path)],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            output = (result.stderr or "") + (result.stdout or "")
+            if result.returncode != 0 or not stl_path.exists():
+                detail = output.strip() or "OpenSCAD failed."
+                raise RuntimeError(detail)
+            dest.write_bytes(stl_path.read_bytes())
+
+
+def make_server(port: int = SERVE_PORT) -> ThreadingHTTPServer:
+    class Handler(BaseHTTPRequestHandler):
+        def _cors(self) -> None:
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+        def do_OPTIONS(self) -> None:  # noqa: N802
+            self.send_response(204)
+            self._cors()
+            self.end_headers()
+
+        def do_GET(self) -> None:  # noqa: N802
+            if self.path.split("?", 1)[0] not in ("/", "/index.html"):
+                self.send_error(404)
+                return
+            data = INDEX_PATH.read_bytes()
+            self.send_response(200)
+            self._cors()
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path.split("?", 1)[0] != "/stl":
+                self.send_error(404)
+                return
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            if length <= 0 or length > 1_000_000:
+                self._send_text(400, "Unexpected model size.")
+                return
+            scad_text = self.rfile.read(length).decode("utf-8")
+            try:
+                with tempfile.TemporaryDirectory() as tmp:
+                    dest = Path(tmp) / "adapter.stl"
+                    render_stl(scad_text, dest)
+                    data = dest.read_bytes()
+            except RuntimeError as exc:
+                self._send_text(422, str(exc))
+                return
+            self.send_response(200)
+            self._cors()
+            self.send_header("Content-Type", "model/stl")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def _send_text(self, status: int, message: str) -> None:
+            body = message.encode("utf-8", errors="replace")
+            self.send_response(status)
+            self._cors()
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, fmt: str, *args) -> None:
+            print(f"{self.address_string()} {fmt % args}")
+
+    return ThreadingHTTPServer((SERVE_HOST, port), Handler)
+
+
+def serve(port: int = SERVE_PORT) -> None:
+    server = make_server(port)
+    bound = server.server_address[1]
+    print(f"Open http://{SERVE_HOST}:{bound}/")
+    print("Download STL on that page renders the model with OpenSCAD.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print()
+    finally:
+        server.server_close()
+
+
 def build_page(template: str | None = None) -> str:
     source = template if template is not None else load_template()
     if "</" in source:
@@ -131,9 +239,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--angle",
         type=float,
         default=0,
-        help="Bend between the socket and the tube, in degrees from 0 to 90 (default 0).",
+        help="Bend between the socket and the tube, in degrees from -90 to 90 (default 0).",
     )
-    parser.add_argument("-o", "--output", type=Path, help="Where to write the OpenSCAD file.")
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="Where to write the file. A .stl suffix renders an STL; anything else writes OpenSCAD.",
+    )
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help=f"Serve the page at http://{SERVE_HOST}:{SERVE_PORT}/ and render STL downloads with OpenSCAD.",
+    )
     parser.add_argument(
         "--build-page",
         action="store_true",
@@ -147,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.build_page:
         INDEX_PATH.write_text(build_page(), encoding="utf-8")
         print(f"Wrote {INDEX_PATH.relative_to(ROOT)}")
-    if args.output is None and not args.build_page:
+    if args.output is None and not args.build_page and not args.serve:
         args.output = Path("-")
     if args.output is not None:
         text = substitute(
@@ -161,10 +279,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         if str(args.output) == "-":
             sys.stdout.write(text)
+        elif args.output.suffix.lower() == ".stl":
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            render_stl(text, args.output)
+            print(f"Wrote {args.output}")
         else:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(text, encoding="utf-8")
             print(f"Wrote {args.output}")
+    if args.serve:
+        serve()
     return 0
 
 

@@ -121,6 +121,20 @@
     }
     button:hover:enabled { background: var(--green-dark); }
     button:disabled { background: #b7b1a6; cursor: not-allowed; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    button.secondary {
+      background: transparent;
+      color: var(--green);
+      box-shadow: inset 0 0 0 1px var(--green);
+    }
+    button.secondary:hover:enabled { background: #e7f2ea; }
+    button.secondary:disabled {
+      color: #b7b1a6;
+      background: transparent;
+      box-shadow: inset 0 0 0 1px #b7b1a6;
+    }
+    .status { margin: 10px 0 0; color: var(--muted); }
+    .status:empty { display: none; }
     .error {
       margin: 10px 0 0;
       color: var(--danger);
@@ -190,14 +204,18 @@
         </fieldset>
         <label class="field">Angle
           <span class="control">
-            <input id="angle" type="number" name="angle" min="0" max="90" step="1" required>
+            <input id="angle" type="number" name="angle" min="-90" max="90" step="1" required>
             <span class="unit">deg</span>
           </span>
-          <input id="angle-range" type="range" min="0" max="90" step="1" aria-label="Angle in degrees">
-          <span class="hint">0° is straight. 90° is a right angle, bending toward the same side as the flush edge.</span>
+          <input id="angle-range" type="range" min="-90" max="90" step="1" aria-label="Angle in degrees">
+          <span class="hint">0° is straight. 90° bends toward the flush edge. −90° bends the other way.</span>
         </label>
         <p class="summary" id="summary"></p>
-        <button type="submit" id="download">Download SCAD file</button>
+        <div class="actions">
+          <button type="submit" id="download">Download SCAD file</button>
+          <button type="button" class="secondary" id="download-stl">Download STL file</button>
+        </div>
+        <p class="status" id="status" role="status"></p>
         <p class="error" id="error" role="alert"></p>
       </form>
       <div class="preview">
@@ -212,7 +230,8 @@
       <p>Push the male CLEANTEC plug on the hose into the socket and twist it until the three lugs sit behind the shelves. Pulling straight out will not release it. Twist back to the entry slots to remove it.</p>
       <h2>Printing</h2>
       <ul>
-        <li>Open the file in OpenSCAD, render it with F6, and export an STL.</li>
+        <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
+        <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
         <li>Print with the tube on the bed and the socket mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
         <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
         <li>If the plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
@@ -227,7 +246,9 @@
 // is a tube. Set the tube diameter, whether that diameter is the inside
 // or the outside, the tube length, and the wall thickness. The tube can
 // stay centered or slide across until one outer wall lines up with the
-// socket, and it can leave the socket at an angle up to 90 degrees.
+// socket, and it can leave the socket at an angle from -90 to 90 degrees.
+// Circles are divided into flats 0.25 mm wide, which is finer than a
+// 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
 // The socket follows the real plug: a 36.2 mm bore and three locking
 // shelves. Proportions were measured from Meister Edel's reference
@@ -258,12 +279,17 @@ wall_thickness = 3; // [0.4:0.1:20]
 alignment = "center"; // [center, edge]
 
 // Bend between the socket axis and the tube, in degrees.
-// 0 is straight. 90 is a right angle.
-angle = 0; // [0:1:90]
+// 0 is straight. Positive bends toward the flush edge, negative the other way.
+angle = 0; // [-90:1:90]
 
 /* [Print] */
-// Circle smoothness. 96 is a good balance of roundness and render time.
-resolution = 96; // [48:16:192]
+// Longest flat on a circle, in millimetres.
+// 0.25 mm is finer than a 0.4 mm nozzle line, so a Bambu H2D prints the
+// cylinders round instead of as a polygon. Use 0.15 mm with a 0.2 mm nozzle.
+facet = 0.25; // [0.1:0.05:1]
+
+// Circle sides. 0 follows facet. A positive number forces that many sides.
+resolution = 0; // [0:16:720]
 
 /* [Hidden] */
 // Female CLEANTEC socket, in millimetres.
@@ -298,8 +324,9 @@ assert(tube_id > 0.5,
        "Wall thickness leaves no airflow. Reduce it or increase the diameter.");
 assert(alignment == "center" || alignment == "edge",
        "alignment must be \"center\" or \"edge\"");
-assert(angle >= 0 && angle <= 90,
-       "Angle must be from 0 to 90 degrees.");
+assert(angle >= -90 && angle <= 90,
+       "Angle must be from -90 to 90 degrees.");
+assert(facet > 0, "Facet size must be positive.");
 
 // Long enough that the outside cone stays within about 35 degrees of vertical.
 transition_h = max(
@@ -311,17 +338,21 @@ transition_h = max(
 edge_offset = (alignment == "edge") ? (socket_od - tube_od) / 2 : 0;
 // Centerline radius of a bend. Large enough that the passage stays open.
 bend_r = max(socket_od, tube_od) * 0.8;
-bend_steps = max(6, round(angle / 8));
+bend_steps = max(6, round(abs(angle) / 8));
 
 bore_r = bore_d / 2;
 eps = 0.02;
 
 function smooth(t) = t * t * (3 - 2 * t);
-function path_pos(t) = [
-    bend_r * (1 - cos(angle * t)) + edge_offset * smooth(t),
-    0,
-    -bend_r * sin(angle * t)
-];
+function path_pos(t) =
+    let (
+        sweep = abs(angle) * t,
+        side = angle < 0 ? -1 : 1
+    ) [
+        side * bend_r * (1 - cos(sweep)) + edge_offset * smooth(t),
+        0,
+        -bend_r * sin(sweep)
+    ];
 function path_dir(t) =
     let (
         a = max(0, t - 0.001),
@@ -450,7 +481,7 @@ module station(t, radius) {
             cylinder(h = 0.8, r = radius, center = true);
 }
 
-// Socket base at the origin, tube bending toward +X and then running straight.
+// Socket base at the origin. A positive angle bends toward +X, a negative angle toward -X.
 module bent_adapter() {
     tube_dir = [sin(angle), 0, -cos(angle)];
     tube_end = path_pos(1) + tube_dir * wall_length;
@@ -492,14 +523,33 @@ module bent_adapter() {
     }
 }
 
-module adapter() {
-    $fn = resolution;
+module adapter_body() {
     if (angle == 0 && alignment != "edge")
         centered_adapter();
     else if (angle == 0)
         edge_adapter();
     else
         bent_adapter();
+}
+
+module forced_resolution() {
+    $fn = resolution;
+    children();
+}
+
+// Flats no longer than `facet`, and no coarser than 0.5 degrees.
+module smooth_resolution() {
+    $fn = 0;
+    $fa = 0.5;
+    $fs = facet;
+    children();
+}
+
+module adapter() {
+    if (resolution > 0)
+        forced_resolution() adapter_body();
+    else
+        smooth_resolution() adapter_body();
 }
 
 adapter();
@@ -572,21 +622,24 @@ echo(Bend_r = bend_r);
       return spec.alignment === "edge" ? (SOCKET.od - spec.tubeOd) / 2 : 0;
     }
 
-    // Same centerline as the OpenSCAD bend: an arc toward +X, then a straight tube.
+    // Same centerline as the OpenSCAD bend. Positive angles arc toward +X.
     function bendGeometry(spec) {
       const off = edgeOffsetOf(spec);
       const angle = spec.angle;
+      const side = angle < 0 ? -1 : 1;
+      const mag = Math.abs(angle);
       const bendR = Math.max(SOCKET.od, spec.tubeOd) * 0.8;
       function smooth(t) { return t * t * (3 - 2 * t); }
       function pos(t) {
+        const sweep = mag * t;
         return [
-          bendR * (1 - scadCos(angle * t)) + off * smooth(t),
-          -bendR * scadSin(angle * t),
+          side * bendR * (1 - scadCos(sweep)) + off * smooth(t),
+          -bendR * scadSin(sweep),
         ];
       }
       function tangent(t) {
-        const rad = angle * Math.PI / 180;
-        const dx = bendR * Math.sin(rad * t) * rad + off * 6 * t * (1 - t);
+        const rad = mag * Math.PI / 180;
+        const dx = side * bendR * Math.sin(rad * t) * rad + off * 6 * t * (1 - t);
         const dz = -bendR * Math.cos(rad * t) * rad;
         const n = Math.hypot(dx, dz) || 1;
         return [dx / n, dz / n];
@@ -596,13 +649,13 @@ echo(Bend_r = bend_r);
       const tubeEnd = [end[0] + dir[0] * spec.length, end[1] + dir[1] * spec.length];
       const rim = (spec.tubeOd / 2) * Math.sqrt(Math.max(0, 1 - dir[1] * dir[1]));
       const lift = -(tubeEnd[1] - rim);
-      return { pos, tangent, dir, tubeEnd, lift };
+      return { pos, tangent, dir, tubeEnd, lift, side };
     }
 
     function partSize(spec) {
       const sockR = SOCKET.od / 2;
       const tubeR = spec.tubeOd / 2;
-      if (!(spec.angle > 0)) {
+      if (spec.angle === 0) {
         const off = edgeOffsetOf(spec);
         const minX = Math.min(-sockR, off - tubeR);
         const maxX = Math.max(sockR, off + tubeR);
@@ -619,7 +672,7 @@ echo(Bend_r = bend_r);
         box.minZ = Math.min(box.minZ, z - ez);
         box.maxZ = Math.max(box.maxZ, z + ez);
       }
-      const steps = Math.max(24, Math.round(spec.angle));
+      const steps = Math.max(24, Math.round(Math.abs(spec.angle)));
       for (let i = 0; i <= steps; i++) {
         const t = i / steps;
         add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t);
@@ -643,8 +696,8 @@ echo(Bend_r = bend_r);
       if (diameter <= 0 || length <= 0 || thickness <= 0) {
         return { error: "Diameter, tube length, and wall thickness must be positive." };
       }
-      if (angle < 0 || angle > 90) {
-        return { error: "Angle must be from 0 to 90 degrees." };
+      if (angle < -90 || angle > 90) {
+        return { error: "Angle must be from -90 to 90 degrees." };
       }
       const tubeId = measurement === "outer" ? diameter - 2 * thickness : diameter;
       const tubeOd = measurement === "outer" ? diameter : diameter + 2 * thickness;
@@ -670,7 +723,7 @@ echo(Bend_r = bend_r);
       const face = spec.measurement === "outer" ? "Outer tube" : "Inner tube";
       const place = spec.alignment === "edge" ? "along one edge" : "centered";
       let tail;
-      if (spec.angle > 0) {
+      if (spec.angle !== 0) {
         tail = "bent " + fmt(spec.angle) + "°. The CLEANTEC socket is " +
           display(SOCKET.od) + " mm across. Overall " + display(spec.height) +
           " mm tall and " + display(spec.width) + " mm wide. The elbow may need support.";
@@ -707,15 +760,15 @@ echo(Bend_r = bend_r);
       let name = "cleantec-adapter-" + side + fmt(spec.diameter) +
         "-len" + fmt(spec.length) + "-wall" + fmt(spec.thickness);
       if (spec.alignment === "edge") name += "-edge";
-      if (spec.angle > 0) name += "-a" + fmt(spec.angle);
-      return name + ".scad";
+      if (spec.angle !== 0) name += "-a" + fmt(spec.angle);
+      return name;
     }
 
     function download(spec) {
       const blob = new Blob([withParams(spec)], { type: "text/plain" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = filename(spec);
+      link.download = filename(spec) + ".scad";
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -729,7 +782,7 @@ echo(Bend_r = bend_r);
       const exitR = SOCKET.exitD / 2;
       const boreR = SOCKET.boreD / 2;
       const mouthR = SOCKET.mouthD / 2;
-      if (!(spec.angle > 0)) {
+      if (spec.angle === 0) {
         const off = edgeOffsetOf(spec);
         const z1 = spec.length;
         const z2 = spec.length + spec.transition;
@@ -762,12 +815,12 @@ echo(Bend_r = bend_r);
       }
 
       const g = bendGeometry(spec);
-      const steps = Math.max(12, Math.round(spec.angle));
+      const steps = Math.max(12, Math.round(Math.abs(spec.angle)));
       function shift(point) { return [point[0], point[1] + g.lift]; }
-      // Points to the inside of the elbow. At the socket this is +X.
+      // Points to the inside of the elbow. At the socket this is +X for a positive angle.
       function inward(t) {
         const [tx, tz] = g.tangent(t);
-        return [-tz, tx];
+        return [-tz * g.side, tx * g.side];
       }
       const outside = [];
       const inside = [];
@@ -801,18 +854,27 @@ echo(Bend_r = bend_r);
         g.tubeEnd[0] + nEnd[0] * tubeRi,
         g.tubeEnd[1] + nEnd[1] * tubeRi,
       ]);
+      // A negative bend puts the elbow's inside on the left, so the rails swap.
+      const leftWall = g.side < 0 ? inside : outside;
+      const rightWall = g.side < 0 ? outside : inside;
+      const leftEnd = g.side < 0 ? endIn : endOut;
+      const rightEnd = g.side < 0 ? endOut : endIn;
+      const leftAir = g.side < 0 ? inAir : outAir;
+      const rightAir = g.side < 0 ? outAir : inAir;
+      const leftEndAir = g.side < 0 ? endInAir : endOutAir;
+      const rightEndAir = g.side < 0 ? endOutAir : endInAir;
       const outer = [
         shift([-sockR, SOCKET.h]),
         shift([-sockR, 0]),
-        ...outside.slice(1),
-        endOut,
-        endIn,
-        ...inside.slice().reverse(),
+        ...leftWall.slice(1),
+        leftEnd,
+        rightEnd,
+        ...rightWall.slice().reverse(),
         shift([sockR, SOCKET.h]),
       ];
       const inner = [
-        endOutAir,
-        ...outAir.slice().reverse(),
+        leftEndAir,
+        ...leftAir.slice().reverse(),
         shift([-boreR, 6]),
         shift([-boreR, 40]),
         shift([-mouthR, SOCKET.h]),
@@ -820,8 +882,8 @@ echo(Bend_r = bend_r);
         shift([boreR, 40]),
         shift([boreR, 6]),
         shift([exitR, 0]),
-        ...inAir.slice(1),
-        endInAir,
+        ...rightAir.slice(1),
+        rightEndAir,
       ];
       return { outer, inner };
     }
@@ -837,7 +899,7 @@ echo(Bend_r = bend_r);
       const maxZ = Math.max(...zs);
       const spanX = Math.max(maxX - minX, 1);
       const spanZ = Math.max(maxZ - minZ, 1);
-      const margin = { left: 108, right: 200, top: 32, bottom: spec.angle > 0 ? 40 : 24 };
+      const margin = { left: 108, right: 200, top: 32, bottom: spec.angle !== 0 ? 40 : 24 };
       const scale = Math.min(460 / spanZ, 460 / spanX);
       const width = margin.left + margin.right + spanX * scale;
       const height = margin.top + margin.bottom + spanZ * scale;
@@ -853,9 +915,9 @@ echo(Bend_r = bend_r);
 
       const labelX = xOf(maxX) + 14;
       const midY = yOf((minZ + maxZ) / 2);
-      const heightLabel = spec.angle > 0 ? display(spec.height) + " mm tall" : display(spec.total) + " mm overall";
+      const heightLabel = spec.angle !== 0 ? display(spec.height) + " mm tall" : display(spec.total) + " mm overall";
       let widthDim = "";
-      if (spec.angle > 0) {
+      if (spec.angle !== 0) {
         const yb = yOf(minZ) + 22;
         widthDim =
           dim(xOf(minX), yb, xOf(maxX), yb) +
@@ -883,20 +945,67 @@ echo(Bend_r = bend_r);
         '<text x="' + xOf(0).toFixed(1) + '" y="18" text-anchor="middle" fill="#5c564c" font-size="12">mouth, twist-lock</text>';
     }
 
+    let stlBusy = false;
+
+    function setButtons(invalid) {
+      document.getElementById("download").disabled = invalid;
+      document.getElementById("download-stl").disabled = invalid || stlBusy;
+    }
+
+    function stlEndpoint() {
+      if (location.protocol === "file:") return "http://127.0.0.1:8765/stl";
+      return new URL("/stl", location.origin).href;
+    }
+
+    async function downloadStl(spec) {
+      const status = document.getElementById("status");
+      stlBusy = true;
+      setButtons(false);
+      status.textContent = "Rendering the STL with OpenSCAD. A straight adapter usually finishes within a minute. A bend takes longer.";
+      try {
+        const response = await fetch(stlEndpoint(), {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: withParams(spec),
+        });
+        if (!response.ok) {
+          const detail = (await response.text()).trim();
+          throw new Error(detail || "OpenSCAD could not render this adapter.");
+        }
+        const blob = await response.blob();
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename(spec) + ".stl";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+        status.textContent = "";
+      } catch (err) {
+        const detail = err && err.message ? err.message : "";
+        const refused = !detail || /failed to fetch|networkerror|load failed/i.test(detail);
+        status.textContent = refused
+          ? "STL export needs the local helper. Run python3 generate.py --serve and open the address it prints, then try again."
+          : detail;
+      } finally {
+        stlBusy = false;
+        refresh();
+      }
+    }
+
     function refresh() {
       const input = readForm();
       const result = describe(input);
       const error = document.getElementById("error");
-      const button = document.getElementById("download");
       const summary = document.getElementById("summary");
       if (result.error) {
         error.textContent = result.error;
-        button.disabled = true;
+        setButtons(true);
         summary.textContent = "";
         return;
       }
       error.textContent = "";
-      button.disabled = false;
+      setButtons(false);
       summary.textContent = summaryText(result);
       result.diameter = input.diameter;
       draw(result);
@@ -930,6 +1039,16 @@ echo(Bend_r = bend_r);
         }
         result.diameter = input.diameter;
         download(result);
+      });
+      document.getElementById("download-stl").addEventListener("click", () => {
+        const input = readForm();
+        const result = describe(input);
+        if (result.error) {
+          refresh();
+          return;
+        }
+        result.diameter = input.diameter;
+        downloadStl(result);
       });
       refresh();
     }
