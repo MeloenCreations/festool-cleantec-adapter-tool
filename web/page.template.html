@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Festool CLEANTEC adapter</title>
+  <style>
+    :root {
+      --ink: #1c1915;
+      --muted: #5c564c;
+      --line: #d7d0c4;
+      --paper: #f3efe6;
+      --card: #fffcf7;
+      --green: #0e5c32;
+      --green-dark: #0a4023;
+      --danger: #8d2e24;
+      --danger-bg: #f8e8e4;
+      --wall: #d7e4d6;
+      --bore: #fffcf7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 28px 20px 64px;
+    }
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      margin: 0;
+      max-width: 40rem;
+      color: var(--muted);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 380px) 1fr;
+      gap: 28px;
+      margin-top: 28px;
+      align-items: start;
+    }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    form, .preview, .notes {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    form { padding: 18px 18px 16px; }
+    label.field, .field {
+      display: block;
+      margin: 0 0 14px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-weight: 400;
+    }
+    input[type="number"] {
+      width: 7.5rem;
+      font: inherit;
+      font-size: 18px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: white;
+      color: var(--ink);
+    }
+    input[type="number"]:focus {
+      outline: 2px solid var(--green);
+      border-color: var(--green);
+    }
+    input[type="range"] {
+      width: 100%;
+      margin: 8px 0 0;
+      accent-color: var(--green);
+    }
+    .unit { color: var(--muted); }
+    fieldset {
+      margin: 0 0 14px;
+      padding: 0;
+      border: 0;
+    }
+    legend {
+      font-size: 14px;
+      font-weight: 650;
+      padding: 0;
+      margin-bottom: 6px;
+    }
+    .choices { display: flex; flex-wrap: wrap; gap: 8px 16px; font-weight: 400; }
+    .choices label { font-weight: 400; }
+    .hint { display: block; margin-top: 4px; color: var(--muted); font-weight: 400; font-size: 14px; }
+    .summary {
+      margin: 4px 0 14px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+    button {
+      font: inherit;
+      font-size: 16px;
+      background: var(--green);
+      color: white;
+      border: 0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+    button:hover:enabled { background: var(--green-dark); }
+    button:disabled { background: #b7b1a6; cursor: not-allowed; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    button.secondary {
+      background: transparent;
+      color: var(--green);
+      box-shadow: inset 0 0 0 1px var(--green);
+    }
+    button.secondary:hover:enabled { background: #e7f2ea; }
+    button.secondary:disabled {
+      color: #b7b1a6;
+      background: transparent;
+      box-shadow: inset 0 0 0 1px #b7b1a6;
+    }
+    .status { margin: 10px 0 0; color: var(--muted); }
+    .status:empty { display: none; }
+    .error {
+      margin: 10px 0 0;
+      color: var(--danger);
+      background: var(--danger-bg);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .error:empty { display: none; }
+    .preview { padding: 12px 12px 4px; }
+    .preview h2, .notes h2 {
+      margin: 4px 8px 0;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 650;
+    }
+    svg { width: 100%; height: auto; display: block; }
+    .notes { margin-top: 22px; padding: 8px 18px 16px; }
+    .notes h2 { margin: 14px 0 4px; text-transform: none; letter-spacing: 0; font-size: 18px; color: var(--ink); }
+    .notes p, .notes li { color: var(--muted); }
+    .notes ul { margin: 6px 0 0; padding-left: 1.2rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Festool CLEANTEC adapter</h1>
+      <p>One end is the female CLEANTEC socket a Festool suction hose twists into. The other end is a tube you size. It can sit in the middle or along one edge, and it can leave the socket at an angle.</p>
+    </header>
+    <div class="layout">
+      <form id="adapter-form">
+        <label class="field">Diameter
+          <span class="control">
+            <input id="diameter" type="number" name="diameter" min="1" max="200" step="0.1" required>
+            <span class="unit">mm</span>
+          </span>
+        </label>
+        <fieldset>
+          <legend>This diameter is the</legend>
+          <div class="choices">
+            <label><input type="radio" name="measurement" value="inner"> Inner diameter</label>
+            <label><input type="radio" name="measurement" value="outer"> Outer diameter</label>
+          </div>
+        </fieldset>
+        <div class="field">
+          <span class="choices">
+            <label><input type="checkbox" id="optimize" name="optimize"> Optimize for 3D printing</label>
+          </span>
+          <span class="hint">Adds 0.2 mm of clearance. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller.</span>
+        </div>
+        <label class="field">Tube length
+          <span class="control">
+            <input id="length" type="number" name="length" min="1" max="500" step="0.5" required>
+            <span class="unit">mm</span>
+          </span>
+          <span class="hint">Length of the straight tube. The socket and any bend are added beyond this.</span>
+        </label>
+        <label class="field">Wall thickness
+          <span class="control">
+            <input id="thickness" type="number" name="thickness" min="0.4" max="20" step="0.1" required>
+            <span class="unit">mm</span>
+          </span>
+          <span class="hint">Thickness of the tube wall. The CLEANTEC socket keeps its own shape.</span>
+        </label>
+        <fieldset>
+          <legend>Tube position</legend>
+          <div class="choices">
+            <label><input type="radio" name="alignment" value="center"> Centered</label>
+            <label><input type="radio" name="alignment" value="edge"> Along one edge</label>
+          </div>
+          <span class="hint">Along one edge slides the tube until its outer wall lines up with one side of the socket.</span>
+        </fieldset>
+        <label class="field">Angle
+          <span class="control">
+            <input id="angle" type="number" name="angle" min="-90" max="90" step="1" required>
+            <span class="unit">deg</span>
+          </span>
+          <input id="angle-range" type="range" min="-90" max="90" step="1" aria-label="Angle in degrees">
+          <span class="hint">0° is straight. 90° bends toward the flush edge. −90° bends the other way.</span>
+        </label>
+        <p class="summary" id="summary"></p>
+        <div class="actions">
+          <button type="submit" id="download">Download SCAD file</button>
+          <button type="button" class="secondary" id="download-stl">Download STL file</button>
+        </div>
+        <p class="status" id="status" role="status"></p>
+        <p class="error" id="error" role="alert"></p>
+      </form>
+      <div class="preview">
+        <h2>Section</h2>
+        <svg id="diagram" role="img" aria-labelledby="diagram-title">
+          <title id="diagram-title">Cross section of the adapter</title>
+        </svg>
+      </div>
+    </div>
+    <section class="notes">
+      <h2>How it locks</h2>
+      <p>Push the male CLEANTEC plug on the hose into the socket and twist it until the three lugs sit behind the shelves. Pulling straight out will not release it. Twist back to the entry slots to remove it.</p>
+      <h2>Printing</h2>
+      <ul>
+        <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
+        <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
+        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on the diameter you chose. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller.</li>
+        <li>Print with the tube on the bed and the socket mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
+        <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
+        <li>If the plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
+      </ul>
+    </section>
+  </main>
+  <script type="text/plain" id="scad-source">
+___SCAD_SOURCE___
+  </script>
+  <script>
+    const SOURCE = document.getElementById("scad-source").textContent;
+
+    function paramLine(name) {
+      const match = SOURCE.match(new RegExp("^" + name + " = (.+);", "m"));
+      if (!match) throw new Error("Missing " + name + " in the OpenSCAD source.");
+      return match[1].replace(/"/g, "").trim();
+    }
+
+    function constant(name) {
+      return Number(paramLine(name));
+    }
+
+    const SOCKET = {
+      od: constant("socket_od"),
+      h: constant("socket_h"),
+      exitD: constant("socket_exit_d"),
+      boreD: constant("bore_d"),
+      mouthD: constant("mouth_d"),
+    };
+
+    function fmt(value) {
+      const rounded = Math.round(value * 10000) / 10000;
+      return String(rounded);
+    }
+
+    function display(value) {
+      const tenths = Math.round((value + 1e-6) * 10);
+      return (tenths / 10).toFixed(1);
+    }
+
+    function readNumber(id) {
+      const raw = document.getElementById(id).value.trim();
+      if (raw === "") return NaN;
+      return Number(raw);
+    }
+
+    function readForm() {
+      const diameter = readNumber("diameter");
+      const length = readNumber("length");
+      const thickness = readNumber("thickness");
+      const angle = readNumber("angle");
+      const measurement = document.querySelector('input[name="measurement"]:checked')?.value;
+      const alignment = document.querySelector('input[name="alignment"]:checked')?.value;
+      const optimize = document.getElementById("optimize").checked;
+      return { diameter, length, thickness, measurement, alignment, angle, optimize };
+    }
+
+    function scadCos(degrees) {
+      return Math.cos(degrees * Math.PI / 180);
+    }
+
+    function scadSin(degrees) {
+      return Math.sin(degrees * Math.PI / 180);
+    }
+
+    function edgeOffsetOf(spec) {
+      return spec.alignment === "edge" ? (SOCKET.od - spec.tubeOd) / 2 : 0;
+    }
+
+    // Same centerline as the OpenSCAD bend. Positive angles arc toward +X.
+    function bendGeometry(spec) {
+      const off = edgeOffsetOf(spec);
+      const angle = spec.angle;
+      const side = angle < 0 ? -1 : 1;
+      const mag = Math.abs(angle);
+      const bendR = Math.max(SOCKET.od, spec.tubeOd) * 0.8;
+      function smooth(t) { return t * t * (3 - 2 * t); }
+      function pos(t) {
+        const sweep = mag * t;
+        return [
+          side * bendR * (1 - scadCos(sweep)) + off * smooth(t),
+          -bendR * scadSin(sweep),
+        ];
+      }
+      function tangent(t) {
+        const rad = mag * Math.PI / 180;
+        const dx = side * bendR * Math.sin(rad * t) * rad + off * 6 * t * (1 - t);
+        const dz = -bendR * Math.cos(rad * t) * rad;
+        const n = Math.hypot(dx, dz) || 1;
+        return [dx / n, dz / n];
+      }
+      const dir = [scadSin(angle), -scadCos(angle)];
+      const end = pos(1);
+      const tubeEnd = [end[0] + dir[0] * spec.length, end[1] + dir[1] * spec.length];
+      const rim = (spec.tubeOd / 2) * Math.sqrt(Math.max(0, 1 - dir[1] * dir[1]));
+      const lift = -(tubeEnd[1] - rim);
+      return { pos, tangent, dir, tubeEnd, lift, side };
+    }
+
+    function partSize(spec) {
+      const sockR = SOCKET.od / 2;
+      const tubeR = spec.tubeOd / 2;
+      if (spec.angle === 0) {
+        const off = edgeOffsetOf(spec);
+        const minX = Math.min(-sockR, off - tubeR);
+        const maxX = Math.max(sockR, off + tubeR);
+        return { width: maxX - minX, height: spec.total };
+      }
+      const g = bendGeometry(spec);
+      const box = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+      function add(center, normal, radius) {
+        const ex = radius * Math.sqrt(Math.max(0, 1 - normal[0] * normal[0]));
+        const ez = radius * Math.sqrt(Math.max(0, 1 - normal[1] * normal[1]));
+        const z = center[1] + g.lift;
+        box.minX = Math.min(box.minX, center[0] - ex);
+        box.maxX = Math.max(box.maxX, center[0] + ex);
+        box.minZ = Math.min(box.minZ, z - ez);
+        box.maxZ = Math.max(box.maxZ, z + ez);
+      }
+      const steps = Math.max(24, Math.round(Math.abs(spec.angle)));
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t);
+      }
+      add(g.tubeEnd, g.dir, tubeR);
+      box.minX = Math.min(box.minX, -sockR);
+      box.maxX = Math.max(box.maxX, sockR);
+      // The model sits on the tube-end rim, and the socket mouth is the top.
+      return { width: box.maxX - box.minX, height: g.lift + SOCKET.h };
+    }
+
+    function describe(input) {
+      const { diameter, length, thickness, measurement, alignment, angle, optimize } = input;
+      if (!measurement) return { error: "Choose inner or outer diameter." };
+      if (alignment !== "center" && alignment !== "edge") {
+        return { error: "Choose centered or along one edge." };
+      }
+      if (![diameter, length, thickness, angle].every(Number.isFinite)) {
+        return { error: "Enter a number for diameter, tube length, wall thickness, and angle." };
+      }
+      if (diameter <= 0 || length <= 0 || thickness <= 0) {
+        return { error: "Diameter, tube length, and wall thickness must be positive." };
+      }
+      if (angle < -90 || angle > 90) {
+        return { error: "Angle must be from -90 to 90 degrees." };
+      }
+      const allowance = optimize ? 0.2 : 0;
+      const sized = measurement === "outer" ? diameter - allowance : diameter + allowance;
+      if (sized <= 0) {
+        return { error: "The print allowance removes the whole diameter. Increase it or turn optimization off." };
+      }
+      const tubeId = measurement === "outer" ? sized - 2 * thickness : sized;
+      const tubeOd = measurement === "outer" ? sized : sized + 2 * thickness;
+      if (tubeId <= 0.5) {
+        return { error: "Wall thickness leaves no airflow. Reduce it or increase the diameter." };
+      }
+      const transition = Math.max(
+        8,
+        Math.abs(tubeOd - SOCKET.od) * 0.7,
+        Math.abs(tubeId - SOCKET.exitD) * 0.7
+      );
+      const total = length + transition + SOCKET.h;
+      const spec = {
+        diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, optimize, transition, total,
+      };
+      const size = partSize(spec);
+      spec.width = size.width;
+      spec.height = size.height;
+      return spec;
+    }
+
+    function summaryText(spec) {
+      const face = spec.measurement === "outer" ? "Outer tube" : "Inner tube";
+      const place = spec.alignment === "edge" ? "along one edge" : "centered";
+      let tail;
+      if (spec.angle !== 0) {
+        tail = "bent " + fmt(spec.angle) + "°. The CLEANTEC socket is " +
+          display(SOCKET.od) + " mm across. Overall " + display(spec.height) +
+          " mm tall and " + display(spec.width) + " mm wide. The elbow may need support.";
+      } else {
+        tail = "straight. The CLEANTEC socket is " +
+          display(SOCKET.od) + " mm across and " + display(SOCKET.h) +
+          " mm long, with a transition of " + display(spec.transition) +
+          " mm. Overall length " + display(spec.total) + " mm.";
+      }
+      let fit = "";
+      if (spec.optimize) {
+        fit = spec.measurement === "outer"
+          ? " The outer diameter is printed 0.2 mm smaller than " + display(spec.diameter) + " mm."
+          : " The inner diameter is printed 0.2 mm larger than " + display(spec.diameter) + " mm.";
+      }
+      return (
+        face + ", " + display(spec.tubeId) + " mm inside and " + display(spec.tubeOd) +
+        " mm outside, " + display(spec.length) + " mm long, " + place + ", " + tail + fit
+      );
+    }
+
+    function withParams(spec) {
+      let source = SOURCE.trim() + "\n";
+      source = source
+        .replace(/^diameter = [^;]+;/m, "diameter = " + fmt(spec.diameter) + ";")
+        .replace(/^measurement = "[^"]+";/m, 'measurement = "' + spec.measurement + '";')
+        .replace(/^optimize_print = [^;]+;/m, "optimize_print = " + (spec.optimize ? "true" : "false") + ";")
+        .replace(/^wall_length = [^;]+;/m, "wall_length = " + fmt(spec.length) + ";")
+        .replace(/^wall_thickness = [^;]+;/m, "wall_thickness = " + fmt(spec.thickness) + ";")
+        .replace(/^alignment = "[^"]+";/m, 'alignment = "' + spec.alignment + '";')
+        .replace(/^angle = [^;]+;/m, "angle = " + fmt(spec.angle) + ";");
+      const note =
+        "// Tube " + spec.measurement + " diameter " + fmt(spec.diameter) +
+        " mm, length " + fmt(spec.length) + " mm, wall " + fmt(spec.thickness) +
+        " mm, " + spec.alignment + ", angle " + fmt(spec.angle) + " deg" +
+        (spec.optimize ? ", print fit 0.2 mm" : "") + ".\n";
+      return note + source;
+    }
+
+    function filename(spec) {
+      const side = spec.measurement === "outer" ? "od" : "id";
+      let name = "cleantec-adapter-" + side + fmt(spec.diameter) +
+        "-len" + fmt(spec.length) + "-wall" + fmt(spec.thickness);
+      if (spec.alignment === "edge") name += "-edge";
+      if (spec.angle !== 0) name += "-a" + fmt(spec.angle);
+      if (spec.optimize) name += "-fit";
+      return name;
+    }
+
+    function download(spec) {
+      const blob = new Blob([withParams(spec)], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename(spec) + ".scad";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function sectionProfile(spec) {
+      const sockR = SOCKET.od / 2;
+      const tubeR = spec.tubeOd / 2;
+      const tubeRi = spec.tubeId / 2;
+      const exitR = SOCKET.exitD / 2;
+      const boreR = SOCKET.boreD / 2;
+      const mouthR = SOCKET.mouthD / 2;
+      if (spec.angle === 0) {
+        const off = edgeOffsetOf(spec);
+        const z1 = spec.length;
+        const z2 = spec.length + spec.transition;
+        const z3 = spec.total;
+        const outer = [
+          [off - tubeR, 0],
+          [off - tubeR, z1],
+          [-sockR, z2],
+          [-sockR, z3],
+          [sockR, z3],
+          [sockR, z2],
+          [off + tubeR, z1],
+          [off + tubeR, 0],
+        ];
+        const inner = [
+          [off - tubeRi, 0],
+          [off - tubeRi, z1],
+          [-exitR, z2],
+          [-boreR, z2 + 6],
+          [-boreR, z2 + 40],
+          [-mouthR, z3],
+          [mouthR, z3],
+          [boreR, z2 + 40],
+          [boreR, z2 + 6],
+          [exitR, z2],
+          [off + tubeRi, z1],
+          [off + tubeRi, 0],
+        ];
+        return { outer, inner };
+      }
+
+      const g = bendGeometry(spec);
+      const steps = Math.max(12, Math.round(Math.abs(spec.angle)));
+      function shift(point) { return [point[0], point[1] + g.lift]; }
+      // Points to the inside of the elbow. At the socket this is +X for a positive angle.
+      function inward(t) {
+        const [tx, tz] = g.tangent(t);
+        return [-tz * g.side, tx * g.side];
+      }
+      const outside = [];
+      const inside = [];
+      const outAir = [];
+      const inAir = [];
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const p = g.pos(t);
+        const n = inward(t);
+        const outerR = sockR + (tubeR - sockR) * t;
+        const innerR = exitR + (tubeRi - exitR) * t;
+        outside.push(shift([p[0] - n[0] * outerR, p[1] - n[1] * outerR]));
+        inside.push(shift([p[0] + n[0] * outerR, p[1] + n[1] * outerR]));
+        outAir.push(shift([p[0] - n[0] * innerR, p[1] - n[1] * innerR]));
+        inAir.push(shift([p[0] + n[0] * innerR, p[1] + n[1] * innerR]));
+      }
+      const nEnd = inward(1);
+      const endOut = shift([
+        g.tubeEnd[0] - nEnd[0] * tubeR,
+        g.tubeEnd[1] - nEnd[1] * tubeR,
+      ]);
+      const endIn = shift([
+        g.tubeEnd[0] + nEnd[0] * tubeR,
+        g.tubeEnd[1] + nEnd[1] * tubeR,
+      ]);
+      const endOutAir = shift([
+        g.tubeEnd[0] - nEnd[0] * tubeRi,
+        g.tubeEnd[1] - nEnd[1] * tubeRi,
+      ]);
+      const endInAir = shift([
+        g.tubeEnd[0] + nEnd[0] * tubeRi,
+        g.tubeEnd[1] + nEnd[1] * tubeRi,
+      ]);
+      // A negative bend puts the elbow's inside on the left, so the rails swap.
+      const leftWall = g.side < 0 ? inside : outside;
+      const rightWall = g.side < 0 ? outside : inside;
+      const leftEnd = g.side < 0 ? endIn : endOut;
+      const rightEnd = g.side < 0 ? endOut : endIn;
+      const leftAir = g.side < 0 ? inAir : outAir;
+      const rightAir = g.side < 0 ? outAir : inAir;
+      const leftEndAir = g.side < 0 ? endInAir : endOutAir;
+      const rightEndAir = g.side < 0 ? endOutAir : endInAir;
+      const outer = [
+        shift([-sockR, SOCKET.h]),
+        shift([-sockR, 0]),
+        ...leftWall.slice(1),
+        leftEnd,
+        rightEnd,
+        ...rightWall.slice().reverse(),
+        shift([sockR, SOCKET.h]),
+      ];
+      const inner = [
+        leftEndAir,
+        ...leftAir.slice().reverse(),
+        shift([-boreR, 6]),
+        shift([-boreR, 40]),
+        shift([-mouthR, SOCKET.h]),
+        shift([mouthR, SOCKET.h]),
+        shift([boreR, 40]),
+        shift([boreR, 6]),
+        shift([exitR, 0]),
+        ...rightAir.slice(1),
+        rightEndAir,
+      ];
+      return { outer, inner };
+    }
+
+    function draw(spec) {
+      const svg = document.getElementById("diagram");
+      const { outer, inner } = sectionProfile(spec);
+      const xs = outer.map((point) => point[0]);
+      const zs = outer.map((point) => point[1]);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minZ = Math.min(...zs);
+      const maxZ = Math.max(...zs);
+      const spanX = Math.max(maxX - minX, 1);
+      const spanZ = Math.max(maxZ - minZ, 1);
+      const margin = { left: 108, right: 200, top: 32, bottom: spec.angle !== 0 ? 40 : 24 };
+      const scale = Math.min(460 / spanZ, 460 / spanX);
+      const width = margin.left + margin.right + spanX * scale;
+      const height = margin.top + margin.bottom + spanZ * scale;
+      const xOf = (x) => margin.left + (x - minX) * scale;
+      const yOf = (z) => margin.top + (maxZ - z) * scale;
+      const chain = (points) => points.map(([x, z]) => xOf(x).toFixed(2) + "," + yOf(z).toFixed(2)).join(" ");
+
+      const title =
+        "Side view. The socket mouth is at the top. " + summaryText(spec);
+      const dim = (x1, y1, x2, y2) =>
+        '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) +
+        '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="#8a8175" stroke-width="1"/>';
+
+      const labelX = xOf(maxX) + 14;
+      const midY = yOf((minZ + maxZ) / 2);
+      const heightLabel = spec.angle !== 0 ? display(spec.height) + " mm tall" : display(spec.total) + " mm overall";
+      let widthDim = "";
+      if (spec.angle !== 0) {
+        const yb = yOf(minZ) + 22;
+        widthDim =
+          dim(xOf(minX), yb, xOf(maxX), yb) +
+          '<text x="' + ((xOf(minX) + xOf(maxX)) / 2).toFixed(1) + '" y="' + (yb + 14).toFixed(1) +
+          '" text-anchor="middle" fill="#5c564c" font-size="13">' +
+          display(spec.width) + " mm wide</text>";
+      }
+
+      svg.setAttribute("viewBox", "0 0 " + width.toFixed(1) + " " + height.toFixed(1));
+      svg.innerHTML =
+        '<title id="diagram-title">' + title + "</title>" +
+        '<polygon points="' + chain(outer) + '" fill="#d7e4d6" stroke="#0e5c32" stroke-width="1.5"/>' +
+        '<polygon points="' + chain(inner) + '" fill="#fffcf7" stroke="#0e5c32" stroke-width="1"/>' +
+        dim(28, yOf(minZ), 28, yOf(maxZ)) +
+        '<text x="22" y="' + midY.toFixed(1) + '" text-anchor="middle" transform="rotate(-90 22 ' +
+          midY.toFixed(1) + ')" fill="#5c564c" font-size="13">' + heightLabel + "</text>" +
+        widthDim +
+        '<text x="' + labelX.toFixed(1) + '" y="' + (midY - 8).toFixed(1) +
+          '" fill="#1c1915" font-size="13">Tube ' + display(spec.tubeId) + " / " +
+          display(spec.tubeOd) + " mm</text>" +
+        '<text x="' + labelX.toFixed(1) + '" y="' + (midY + 8).toFixed(1) +
+          '" fill="#5c564c" font-size="12">inside / outside</text>' +
+        '<text x="' + labelX.toFixed(1) + '" y="' + (midY + 28).toFixed(1) +
+          '" fill="#1c1915" font-size="13">Socket ' + display(SOCKET.od) + " mm</text>" +
+        '<text x="' + xOf(0).toFixed(1) + '" y="18" text-anchor="middle" fill="#5c564c" font-size="12">mouth, twist-lock</text>';
+    }
+
+    let stlBusy = false;
+
+    function setButtons(invalid) {
+      document.getElementById("download").disabled = invalid;
+      document.getElementById("download-stl").disabled = invalid || stlBusy;
+    }
+
+    function stlEndpoint() {
+      if (location.protocol === "file:") return "http://127.0.0.1:8765/stl";
+      return new URL("/stl", location.origin).href;
+    }
+
+    async function downloadStl(spec) {
+      const status = document.getElementById("status");
+      stlBusy = true;
+      setButtons(false);
+      status.textContent = "Rendering the STL with OpenSCAD. A straight adapter usually finishes within a minute. A bend takes longer.";
+      try {
+        const response = await fetch(stlEndpoint(), {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: withParams(spec),
+        });
+        if (!response.ok) {
+          const detail = (await response.text()).trim();
+          throw new Error(detail || "OpenSCAD could not render this adapter.");
+        }
+        const blob = await response.blob();
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename(spec) + ".stl";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+        status.textContent = "";
+      } catch (err) {
+        const detail = err && err.message ? err.message : "";
+        const refused = !detail || /failed to fetch|networkerror|load failed/i.test(detail);
+        status.textContent = refused
+          ? "STL export needs the local helper. Run python3 generate.py --serve and open the address it prints, then try again."
+          : detail;
+      } finally {
+        stlBusy = false;
+        refresh();
+      }
+    }
+
+    function refresh() {
+      const input = readForm();
+      const result = describe(input);
+      const error = document.getElementById("error");
+      const summary = document.getElementById("summary");
+      if (result.error) {
+        error.textContent = result.error;
+        setButtons(true);
+        summary.textContent = "";
+        return;
+      }
+      error.textContent = "";
+      setButtons(false);
+      summary.textContent = summaryText(result);
+      result.diameter = input.diameter;
+      draw(result);
+    }
+
+    function init() {
+      document.getElementById("diameter").value = paramLine("diameter");
+      document.getElementById("length").value = paramLine("wall_length");
+      document.getElementById("thickness").value = paramLine("wall_thickness");
+      document.getElementById("angle").value = paramLine("angle");
+      document.getElementById("angle-range").value = paramLine("angle");
+      const measurement = paramLine("measurement");
+      document.querySelector('input[name="measurement"][value="' + measurement + '"]').checked = true;
+      const alignment = paramLine("alignment");
+      document.querySelector('input[name="alignment"][value="' + alignment + '"]').checked = true;
+      document.getElementById("optimize").checked = paramLine("optimize_print") === "true";
+      document.getElementById("adapter-form").addEventListener("input", (event) => {
+        if (event.target.id === "angle" && event.target.value !== "") {
+          document.getElementById("angle-range").value = event.target.value;
+        } else if (event.target.id === "angle-range") {
+          document.getElementById("angle").value = event.target.value;
+        }
+        refresh();
+      });
+      document.getElementById("adapter-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const input = readForm();
+        const result = describe(input);
+        if (result.error) {
+          refresh();
+          return;
+        }
+        result.diameter = input.diameter;
+        download(result);
+      });
+      document.getElementById("download-stl").addEventListener("click", () => {
+        const input = readForm();
+        const result = describe(input);
+        if (result.error) {
+          refresh();
+          return;
+        }
+        result.diameter = input.diameter;
+        downloadStl(result);
+      });
+      refresh();
+    }
+
+    init();
+  </script>
+</body>
+</html>
