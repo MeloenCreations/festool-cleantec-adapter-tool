@@ -20,6 +20,8 @@ PARAM_PATTERNS = {
     "measurement": re.compile(r'^measurement = "[^"]+";', re.M),
     "wall_length": re.compile(r"^wall_length = [^;]+;", re.M),
     "wall_thickness": re.compile(r"^wall_thickness = [^;]+;", re.M),
+    "alignment": re.compile(r'^alignment = "[^"]+";', re.M),
+    "angle": re.compile(r"^angle = [^;]+;", re.M),
 }
 
 
@@ -38,12 +40,23 @@ def tube_diameters(diameter: float, measurement: str, thickness: float) -> tuple
     raise ValueError('measurement must be "inner" or "outer".')
 
 
-def validate(diameter: float, measurement: str, length: float, thickness: float) -> tuple[float, float]:
+def validate(
+    diameter: float,
+    measurement: str,
+    length: float,
+    thickness: float,
+    alignment: str = "center",
+    angle: float = 0,
+) -> tuple[float, float]:
     if measurement not in ("inner", "outer"):
         raise ValueError('measurement must be "inner" or "outer".')
+    if alignment not in ("center", "edge"):
+        raise ValueError('alignment must be "center" or "edge".')
     for name, value in (("diameter", diameter), ("length", length), ("wall thickness", thickness)):
         if not math.isfinite(value) or value <= 0:
             raise ValueError(f"{name.capitalize()} must be a positive number.")
+    if not math.isfinite(angle) or angle < 0 or angle > 90:
+        raise ValueError("Angle must be from 0 to 90 degrees.")
     tube_id, tube_od = tube_diameters(diameter, measurement, thickness)
     if tube_id <= 0.5:
         raise ValueError(
@@ -52,13 +65,23 @@ def validate(diameter: float, measurement: str, length: float, thickness: float)
     return tube_id, tube_od
 
 
-def substitute(source: str, diameter: float, measurement: str, length: float, thickness: float) -> str:
-    validate(diameter, measurement, length, thickness)
+def substitute(
+    source: str,
+    diameter: float,
+    measurement: str,
+    length: float,
+    thickness: float,
+    alignment: str = "center",
+    angle: float = 0,
+) -> str:
+    validate(diameter, measurement, length, thickness, alignment, angle)
     replacements = {
         "diameter": f"diameter = {fmt(diameter)};",
         "measurement": f'measurement = "{measurement}";',
         "wall_length": f"wall_length = {fmt(length)};",
         "wall_thickness": f"wall_thickness = {fmt(thickness)};",
+        "alignment": f'alignment = "{alignment}";',
+        "angle": f"angle = {fmt(angle)};",
     }
     updated = source
     for key, pattern in PARAM_PATTERNS.items():
@@ -67,7 +90,8 @@ def substitute(source: str, diameter: float, measurement: str, length: float, th
             raise RuntimeError(f"Could not find the {key} assignment in the OpenSCAD template.")
     note = (
         f"// Tube {measurement} diameter {fmt(diameter)} mm, "
-        f"length {fmt(length)} mm, wall {fmt(thickness)} mm.\n"
+        f"length {fmt(length)} mm, wall {fmt(thickness)} mm, "
+        f"{alignment}, angle {fmt(angle)} deg.\n"
     )
     return note + updated
 
@@ -97,6 +121,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--length", type=float, default=40, help="Straight tube length in mm (default 40).")
     parser.add_argument("--thickness", type=float, default=3, help="Tube wall thickness in mm (default 3).")
+    parser.add_argument(
+        "--alignment",
+        choices=("center", "edge"),
+        default="center",
+        help="Center the tube, or shift it until one outer wall lines up with the socket (default center).",
+    )
+    parser.add_argument(
+        "--angle",
+        type=float,
+        default=0,
+        help="Bend between the socket and the tube, in degrees from 0 to 90 (default 0).",
+    )
     parser.add_argument("-o", "--output", type=Path, help="Where to write the OpenSCAD file.")
     parser.add_argument(
         "--build-page",
@@ -114,7 +150,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.output is None and not args.build_page:
         args.output = Path("-")
     if args.output is not None:
-        text = substitute(load_template(), args.diameter, args.measurement, args.length, args.thickness)
+        text = substitute(
+            load_template(),
+            args.diameter,
+            args.measurement,
+            args.length,
+            args.thickness,
+            args.alignment,
+            args.angle,
+        )
         if str(args.output) == "-":
             sys.stdout.write(text)
         else:
