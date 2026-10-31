@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write a Festool CLEANTEC adapter OpenSCAD file, or rebuild the web tool."""
+"""Write a vacuum adapter OpenSCAD file, or rebuild the web tool."""
 
 from __future__ import annotations
 
@@ -23,8 +23,19 @@ SERVE_HOST = "127.0.0.1"
 SERVE_PORT = 8765
 RENDER_LOCK = threading.Lock()
 PRINT_ALLOWANCE = 0.2
+TOP_STYLES = ("cleantec", "dyson", "tube")
+CLEANTEC_OD = 44.5
+CLEANTEC_H = 45.4
+CLEANTEC_EXIT_D = 32.0
+DYSON_OD = 34.1
+DYSON_ID = 28.5
+DYSON_H = 46.0
 
 PARAM_PATTERNS = {
+    "top_style": re.compile(r'^top_style = "[^"]+";', re.M),
+    "top_diameter": re.compile(r"^top_diameter = [^;]+;", re.M),
+    "top_measurement": re.compile(r'^top_measurement = "[^"]+";', re.M),
+    "top_wall_length": re.compile(r"^top_wall_length = [^;]+;", re.M),
     "diameter": re.compile(r"^diameter = [^;]+;", re.M),
     "measurement": re.compile(r'^measurement = "[^"]+";', re.M),
     "optimize_print": re.compile(r"^optimize_print = [^;]+;", re.M),
@@ -61,6 +72,31 @@ def eased_diameter(diameter: float, measurement: str, optimize: bool) -> float:
     return eased
 
 
+def top_dims(
+    top_style: str,
+    top_diameter: float,
+    top_measurement: str,
+    top_length: float,
+    thickness: float,
+    optimize: bool,
+) -> tuple[float, float, float]:
+    """Return (outer diameter, exit / inner diameter, height) for the top end."""
+    if top_style == "cleantec":
+        return CLEANTEC_OD, CLEANTEC_EXIT_D, CLEANTEC_H
+    if top_style == "dyson":
+        od = DYSON_OD - PRINT_ALLOWANCE if optimize else DYSON_OD
+        return od, DYSON_ID, DYSON_H
+    if top_style == "tube":
+        sized = eased_diameter(top_diameter, top_measurement, optimize)
+        tube_id, tube_od = tube_diameters(sized, top_measurement, thickness)
+        if tube_id <= 0.5:
+            raise ValueError(
+                "Wall thickness leaves no airflow in the top tube. Reduce it or increase the top diameter."
+            )
+        return tube_od, tube_id, top_length
+    raise ValueError('top_style must be "cleantec", "dyson", or "tube".')
+
+
 def validate(
     diameter: float,
     measurement: str,
@@ -69,12 +105,26 @@ def validate(
     alignment: str = "center",
     angle: float = 0,
     optimize: bool = False,
-) -> tuple[float, float]:
+    top_style: str = "cleantec",
+    top_diameter: float = 28,
+    top_measurement: str = "inner",
+    top_length: float = 40,
+) -> tuple[float, float, float, float, float]:
+    if top_style not in TOP_STYLES:
+        raise ValueError('top_style must be "cleantec", "dyson", or "tube".')
     if measurement not in ("inner", "outer"):
         raise ValueError('measurement must be "inner" or "outer".')
+    if top_measurement not in ("inner", "outer"):
+        raise ValueError('top_measurement must be "inner" or "outer".')
     if alignment not in ("center", "edge"):
         raise ValueError('alignment must be "center" or "edge".')
-    for name, value in (("diameter", diameter), ("length", length), ("wall thickness", thickness)):
+    for name, value in (
+        ("diameter", diameter),
+        ("length", length),
+        ("wall thickness", thickness),
+        ("top diameter", top_diameter),
+        ("top length", top_length),
+    ):
         if not math.isfinite(value) or value <= 0:
             raise ValueError(f"{name.capitalize()} must be a positive number.")
     if not math.isfinite(angle) or angle < -90 or angle > 90:
@@ -85,7 +135,10 @@ def validate(
         raise ValueError(
             "Wall thickness leaves no airflow. Reduce it or increase the diameter."
         )
-    return tube_id, tube_od
+    top_od, top_id, top_h = top_dims(
+        top_style, top_diameter, top_measurement, top_length, thickness, optimize
+    )
+    return tube_id, tube_od, top_od, top_id, top_h
 
 
 def substitute(
@@ -97,9 +150,29 @@ def substitute(
     alignment: str = "center",
     angle: float = 0,
     optimize: bool = False,
+    top_style: str = "cleantec",
+    top_diameter: float = 28,
+    top_measurement: str = "inner",
+    top_length: float = 40,
 ) -> str:
-    validate(diameter, measurement, length, thickness, alignment, angle, optimize)
+    validate(
+        diameter,
+        measurement,
+        length,
+        thickness,
+        alignment,
+        angle,
+        optimize,
+        top_style,
+        top_diameter,
+        top_measurement,
+        top_length,
+    )
     replacements = {
+        "top_style": f'top_style = "{top_style}";',
+        "top_diameter": f"top_diameter = {fmt(top_diameter)};",
+        "top_measurement": f'top_measurement = "{top_measurement}";',
+        "top_wall_length": f"top_wall_length = {fmt(top_length)};",
         "diameter": f"diameter = {fmt(diameter)};",
         "measurement": f'measurement = "{measurement}";',
         "optimize_print": f"optimize_print = {'true' if optimize else 'false'};",
@@ -114,8 +187,13 @@ def substitute(
         if count != 1:
             raise RuntimeError(f"Could not find the {key} assignment in the OpenSCAD template.")
     fit = f", print fit {fmt(PRINT_ALLOWANCE)} mm" if optimize else ""
+    top_note = {
+        "cleantec": "CLEANTEC",
+        "dyson": "Dyson V6",
+        "tube": f"tube {top_measurement} {fmt(top_diameter)} mm",
+    }[top_style]
     note = (
-        f"// Tube {measurement} diameter {fmt(diameter)} mm, "
+        f"// Top {top_note}, bottom {measurement} diameter {fmt(diameter)} mm, "
         f"length {fmt(length)} mm, wall {fmt(thickness)} mm, "
         f"{alignment}, angle {fmt(angle)} deg{fit}.\n"
     )
@@ -238,31 +316,55 @@ def build_page(template: str | None = None) -> str:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--diameter", type=float, default=28, help="Tube diameter in mm (default 28).")
+    parser.add_argument(
+        "--top",
+        choices=TOP_STYLES,
+        default="cleantec",
+        help="Top end: CLEANTEC socket, Dyson V6 connector, or a sized tube (default cleantec).",
+    )
+    parser.add_argument(
+        "--top-diameter",
+        type=float,
+        default=28,
+        help="Top tube diameter in mm when --top=tube (default 28).",
+    )
+    parser.add_argument(
+        "--top-measurement",
+        choices=("inner", "outer"),
+        default="inner",
+        help="Whether --top-diameter is the inner or the outer diameter (default inner).",
+    )
+    parser.add_argument(
+        "--top-length",
+        type=float,
+        default=40,
+        help="Top tube length in mm when --top=tube (default 40).",
+    )
+    parser.add_argument("--diameter", type=float, default=28, help="Bottom tube diameter in mm (default 28).")
     parser.add_argument(
         "--measurement",
         choices=("inner", "outer"),
         default="inner",
         help="Whether --diameter is the inner or the outer diameter (default inner).",
     )
-    parser.add_argument("--length", type=float, default=40, help="Straight tube length in mm (default 40).")
+    parser.add_argument("--length", type=float, default=40, help="Straight bottom tube length in mm (default 40).")
     parser.add_argument("--thickness", type=float, default=3, help="Tube wall thickness in mm (default 3).")
     parser.add_argument(
         "--alignment",
         choices=("center", "edge"),
         default="center",
-        help="Center the tube, or shift it until one outer wall lines up with the socket (default center).",
+        help="Center the bottom tube, or shift it until one outer wall lines up with the top (default center).",
     )
     parser.add_argument(
         "--angle",
         type=float,
         default=0,
-        help="Bend between the socket and the tube, in degrees from -90 to 90 (default 0).",
+        help="Bend between the top and the bottom tube, in degrees from -90 to 90 (default 0).",
     )
     parser.add_argument(
         "--optimize-print",
         action="store_true",
-        help="Ease the chosen diameter by 0.2 mm: an inner diameter prints larger, an outer diameter smaller.",
+        help="Ease sized diameters by 0.2 mm: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter.",
     )
     parser.add_argument(
         "-o",
@@ -300,6 +402,10 @@ def main(argv: list[str] | None = None) -> int:
             args.alignment,
             args.angle,
             args.optimize_print,
+            args.top,
+            args.top_diameter,
+            args.top_measurement,
+            args.top_length,
         )
         if str(args.output) == "-":
             sys.stdout.write(text)

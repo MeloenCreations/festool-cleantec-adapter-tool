@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Festool CLEANTEC adapter</title>
+  <title>Vacuum hose adapter</title>
   <style>
     :root {
       --ink: #1c1915;
@@ -38,7 +38,7 @@
     }
     header p {
       margin: 0;
-      max-width: 40rem;
+      max-width: 42rem;
       color: var(--muted);
     }
     .layout {
@@ -104,6 +104,24 @@
     .choices { display: flex; flex-wrap: wrap; gap: 8px 16px; font-weight: 400; }
     .choices label { font-weight: 400; }
     .hint { display: block; margin-top: 4px; color: var(--muted); font-weight: 400; font-size: 14px; }
+    .group {
+      margin: 0 0 16px;
+      padding: 12px 12px 2px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #faf7f1;
+    }
+    .group > legend {
+      float: left;
+      width: 100%;
+      margin: 0 0 10px;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .group::after { content: ""; display: block; clear: both; }
+    .top-tube-only[hidden] { display: none !important; }
     .summary {
       margin: 4px 0 14px;
       padding-top: 8px;
@@ -162,43 +180,79 @@
 <body>
   <main>
     <header>
-      <h1>Festool CLEANTEC adapter</h1>
-      <p>One end is the female CLEANTEC socket a Festool suction hose twists into. The other end is a tube you size. It can sit in the middle or along one edge, and it can leave the socket at an angle.</p>
+      <h1>Vacuum hose adapter</h1>
+      <p>The top end can be a Festool CLEANTEC socket, a Dyson V6 tool connector, or a tube you size. The bottom end is a tube. It can sit in the middle or along one edge, and it can leave the top at an angle.</p>
     </header>
     <div class="layout">
       <form id="adapter-form">
-        <label class="field">Diameter
-          <span class="control">
-            <input id="diameter" type="number" name="diameter" min="1" max="200" step="0.1" required>
-            <span class="unit">mm</span>
-          </span>
-        </label>
-        <fieldset>
-          <legend>This diameter is the</legend>
-          <div class="choices">
-            <label><input type="radio" name="measurement" value="inner"> Inner diameter</label>
-            <label><input type="radio" name="measurement" value="outer"> Outer diameter</label>
+        <fieldset class="group">
+          <legend>Top end</legend>
+          <fieldset>
+            <legend>Connector</legend>
+            <div class="choices">
+              <label><input type="radio" name="top_style" value="cleantec"> CLEANTEC</label>
+              <label><input type="radio" name="top_style" value="dyson"> Dyson V6</label>
+              <label><input type="radio" name="top_style" value="tube"> Tube</label>
+            </div>
+            <span class="hint">CLEANTEC takes a Festool hose plug. Dyson V6 is the male tip tools click onto. Tube is a plain sized end.</span>
+          </fieldset>
+          <div id="top-tube-fields" class="top-tube-only">
+            <label class="field">Top diameter
+              <span class="control">
+                <input id="top_diameter" type="number" name="top_diameter" min="1" max="200" step="0.1">
+                <span class="unit">mm</span>
+              </span>
+            </label>
+            <fieldset>
+              <legend>This top diameter is the</legend>
+              <div class="choices">
+                <label><input type="radio" name="top_measurement" value="inner"> Inner diameter</label>
+                <label><input type="radio" name="top_measurement" value="outer"> Outer diameter</label>
+              </div>
+            </fieldset>
+            <label class="field">Top tube length
+              <span class="control">
+                <input id="top_length" type="number" name="top_length" min="1" max="500" step="0.5">
+                <span class="unit">mm</span>
+              </span>
+            </label>
           </div>
+        </fieldset>
+        <fieldset class="group">
+          <legend>Bottom tube</legend>
+          <label class="field">Diameter
+            <span class="control">
+              <input id="diameter" type="number" name="diameter" min="1" max="200" step="0.1" required>
+              <span class="unit">mm</span>
+            </span>
+          </label>
+          <fieldset>
+            <legend>This diameter is the</legend>
+            <div class="choices">
+              <label><input type="radio" name="measurement" value="inner"> Inner diameter</label>
+              <label><input type="radio" name="measurement" value="outer"> Outer diameter</label>
+            </div>
+          </fieldset>
+          <label class="field">Tube length
+            <span class="control">
+              <input id="length" type="number" name="length" min="1" max="500" step="0.5" required>
+              <span class="unit">mm</span>
+            </span>
+            <span class="hint">Length of the straight bottom tube. The top end and any bend are added beyond this.</span>
+          </label>
         </fieldset>
         <div class="field">
           <span class="choices">
             <label><input type="checkbox" id="optimize" name="optimize"> Optimize for 3D printing</label>
           </span>
-          <span class="hint">Adds 0.2 mm of clearance. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller.</span>
+          <span class="hint">Adds 0.2 mm of clearance on every sized diameter. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller. The Dyson outer diameter also shrinks by 0.2 mm.</span>
         </div>
-        <label class="field">Tube length
-          <span class="control">
-            <input id="length" type="number" name="length" min="1" max="500" step="0.5" required>
-            <span class="unit">mm</span>
-          </span>
-          <span class="hint">Length of the straight tube. The socket and any bend are added beyond this.</span>
-        </label>
         <label class="field">Wall thickness
           <span class="control">
             <input id="thickness" type="number" name="thickness" min="0.4" max="20" step="0.1" required>
             <span class="unit">mm</span>
           </span>
-          <span class="hint">Thickness of the tube wall. The CLEANTEC socket keeps its own shape.</span>
+          <span class="hint">Thickness of the tube walls and the transition. CLEANTEC and Dyson keep their own shape.</span>
         </label>
         <fieldset>
           <legend>Tube position</legend>
@@ -206,7 +260,7 @@
             <label><input type="radio" name="alignment" value="center"> Centered</label>
             <label><input type="radio" name="alignment" value="edge"> Along one edge</label>
           </div>
-          <span class="hint">Along one edge slides the tube until its outer wall lines up with one side of the socket.</span>
+          <span class="hint">Along one edge slides the bottom tube until its outer wall lines up with one side of the top.</span>
         </fieldset>
         <label class="field">Angle
           <span class="control">
@@ -232,66 +286,87 @@
       </div>
     </div>
     <section class="notes">
-      <h2>How it locks</h2>
-      <p>Push the male CLEANTEC plug on the hose into the socket and twist it until the three lugs sit behind the shelves. Pulling straight out will not release it. Twist back to the entry slots to remove it.</p>
+      <h2>How the top ends work</h2>
+      <p>CLEANTEC: push the male plug on a Festool hose into the socket and twist until the three lugs sit behind the shelves. Twist back to the entry slots to remove it.</p>
+      <p>Dyson V6: slide a Dyson tool onto the male tip until the latch clicks into the groove. The four flats let the tool sit in any 90° orientation.</p>
+      <p>Tube: a plain cylinder sized by inner or outer diameter, the same way as the bottom end.</p>
       <h2>Printing</h2>
       <ul>
         <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
         <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
-        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on the diameter you chose. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller.</li>
-        <li>Print with the tube on the bed and the socket mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
+        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on every sized diameter, including a top tube and the Dyson outer diameter. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller.</li>
+        <li>Print with the bottom tube on the bed and the top mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
         <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
-        <li>If the plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
+        <li>If a CLEANTEC plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
       </ul>
     </section>
   </main>
   <script type="text/plain" id="scad-source">
-// Festool CLEANTEC adapter
+// Vacuum hose adapter
 //
-// The top end is a female CLEANTEC socket. The male plug on a Festool
-// D27 or D36 suction hose pushes in and twists to lock. The other end
-// is a tube. Set the tube diameter, whether that diameter is the inside
-// or the outside, the tube length, and the wall thickness. Optimize for
-// 3D printing opens an inner diameter by 0.2 mm, or shrinks an outer
-// diameter by 0.2 mm. The tube can stay centered or slide across until
-// one outer wall lines up with the socket, and it can leave the socket
-// at an angle from -90 to 90 degrees.
+// The top end can be a female Festool CLEANTEC socket, a Dyson V6 tool
+// connector, or a plain tube. The bottom end is a tube. Set each tube's
+// diameter, whether that diameter is the inside or the outside, the tube
+// length, and the wall thickness. Optimize for 3D printing opens an inner
+// diameter by 0.2 mm, or shrinks an outer diameter by 0.2 mm, on every
+// sized end (bottom tube, top tube, and the Dyson connector). The bottom
+// tube can stay centered or slide across until one outer wall lines up
+// with the top, and it can leave the top at an angle from -90 to 90
+// degrees.
 // Circles are divided into flats 0.25 mm wide, which is finer than a
 // 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
-// The socket follows the real plug: a 36.2 mm bore and three locking
-// shelves. Proportions were measured from Meister Edel's reference
-// models (Printables 107234 and 98001) and the shelves were eased by
-// about 0.2 mm so a typical FDM print can still turn and lock. If a
-// printed socket is too tight or too loose, change lip_deep_r,
+// The CLEANTEC socket follows the real plug: a 36.2 mm bore and three
+// locking shelves. Proportions were measured from Meister Edel's
+// reference models (Printables 107234 and 98001) and the shelves were
+// eased by about 0.2 mm so a typical FDM print can still turn and lock.
+// If a printed socket is too tight or too loose, change lip_deep_r,
 // lip_shallow_r, or bore_d by a tenth of a millimetre or two.
 //
-// Print with the tube end on the bed and the socket mouth facing up.
-// The shelves are chamfered underneath, so they do not need supports.
+// The Dyson V6 connector matches the male wand tip tools click onto
+// (also DC35/DC45/DC52/DC58/DC59). A circumferential groove holds the
+// tool latch, and four orientation flats sit near the base of the tip.
+//
+// Print with the bottom tube end on the bed and the top mouth facing up.
+// CLEANTEC shelves are chamfered underneath, so they do not need supports.
 // PETG is a sound default. Use three or four perimeters.
 
-/* [Tube] */
-// Diameter of the tube, in millimetres.
+/* [Top] */
+// What sits on the top end of the adapter.
+top_style = "cleantec"; // [cleantec, dyson, tube]
+
+// Diameter of the top tube, in millimetres. Used when top_style is tube.
+top_diameter = 28; // [1:0.1:200]
+
+// Which face of the top tube `top_diameter` measures.
+top_measurement = "inner"; // [inner, outer]
+
+// Length of the straight top tube, in millimetres. Used when top_style is tube.
+top_wall_length = 40; // [1:0.5:500]
+
+/* [Bottom tube] */
+// Diameter of the bottom tube, in millimetres.
 diameter = 28; // [1:0.1:200]
 
-// Which face of the tube `diameter` measures.
+// Which face of the bottom tube `diameter` measures.
 measurement = "inner"; // [inner, outer]
 
-// Ease the chosen diameter by 0.2 mm for a typical FDM print.
+// Ease sized diameters by 0.2 mm for a typical FDM print.
 // An inner diameter is printed 0.2 mm larger. An outer diameter is printed 0.2 mm smaller.
+// Applies to the bottom tube, a top tube, and the Dyson connector.
 optimize_print = false;
 
-// Length of the straight tube, in millimetres.
-// The socket and the transition are added on top of this.
+// Length of the straight bottom tube, in millimetres.
+// The top end and the transition are added on top of this.
 wall_length = 40; // [1:0.5:500]
 
-// Wall thickness of the tube and the transition, in millimetres.
+// Wall thickness of the tubes and the transition, in millimetres.
 wall_thickness = 3; // [0.4:0.1:20]
 
-// Center the tube, or shift it so one outer wall lines up with the socket.
+// Center the bottom tube, or shift it so one outer wall lines up with the top.
 alignment = "center"; // [center, edge]
 
-// Bend between the socket axis and the tube, in degrees.
+// Bend between the top axis and the bottom tube, in degrees.
 // 0 is straight. Positive bends toward the flush edge, negative the other way.
 angle = 0; // [-90:1:90]
 
@@ -306,10 +381,10 @@ resolution = 0; // [0:16:720]
 
 /* [Hidden] */
 // Female CLEANTEC socket, in millimetres.
-socket_od = 44.5;
-socket_h = 45.4;
+cleantec_od = 44.5;
+cleantec_h = 45.4;
 // Air passage where the socket meets the transition.
-socket_exit_d = 32;
+cleantec_exit_d = 32;
 // Bore the plug body and its lugs slide through.
 bore_d = 36.2;
 // Lead-in counterbore at the mouth.
@@ -326,19 +401,74 @@ lip_h = 7;
 // Shelf centres in degrees. The last one is the shallow shelf.
 lip_centers = [0, 120, 240];
 
-allowance = optimize_print ? 0.2 : 0;
-sized = (measurement == "outer") ? diameter - allowance : diameter + allowance;
-tube_id = (measurement == "outer") ? sized - 2 * wall_thickness : sized;
-tube_od = (measurement == "outer") ? sized : sized + 2 * wall_thickness;
+// Dyson V6 male tool connector, in millimetres.
+dyson_od_nom = 34.1;
+dyson_id_nom = 28.5;
+dyson_h = 46;
+dyson_tip_h = 10;
+dyson_groove_h = 4.45;
+dyson_groove_taper_h = 2.75;
+dyson_groove_d = 30.7;
+dyson_clip_z = 37;
+dyson_clip_len = 9.5;
+dyson_clip_wall = 2.5;
+dyson_clip_width = 3;
 
+allowance = optimize_print ? 0.2 : 0;
+
+function sized_diameter(d, face) =
+    (face == "outer") ? d - allowance : d + allowance;
+
+function diameters_from(d, face, thickness) =
+    let (sized = sized_diameter(d, face))
+        (face == "outer")
+            ? [sized - 2 * thickness, sized]
+            : [sized, sized + 2 * thickness];
+
+bottom_pair = diameters_from(diameter, measurement, wall_thickness);
+tube_id = bottom_pair[0];
+tube_od = bottom_pair[1];
+bottom_sized = sized_diameter(diameter, measurement);
+
+top_pair = diameters_from(top_diameter, top_measurement, wall_thickness);
+top_tube_id = top_pair[0];
+top_tube_od = top_pair[1];
+top_sized = sized_diameter(top_diameter, top_measurement);
+
+dyson_od = dyson_od_nom - allowance;
+dyson_id = dyson_id_nom;
+
+socket_od =
+    top_style == "cleantec" ? cleantec_od :
+    top_style == "dyson" ? dyson_od :
+    top_tube_od;
+socket_exit_d =
+    top_style == "cleantec" ? cleantec_exit_d :
+    top_style == "dyson" ? dyson_id :
+    top_tube_id;
+socket_h =
+    top_style == "cleantec" ? cleantec_h :
+    top_style == "dyson" ? dyson_h :
+    top_wall_length;
+
+assert(top_style == "cleantec" || top_style == "dyson" || top_style == "tube",
+       "top_style must be \"cleantec\", \"dyson\", or \"tube\"");
 assert(measurement == "inner" || measurement == "outer",
        "measurement must be \"inner\" or \"outer\"");
+assert(top_measurement == "inner" || top_measurement == "outer",
+       "top_measurement must be \"inner\" or \"outer\"");
 assert(diameter > 0 && wall_length > 0 && wall_thickness > 0,
        "Diameter, length, and wall thickness must be positive.");
-assert(sized > 0,
-       "The print allowance removes the whole diameter. Increase it or turn optimization off.");
+assert(top_diameter > 0 && top_wall_length > 0,
+       "Top diameter and top length must be positive.");
+assert(bottom_sized > 0,
+       "The print allowance removes the whole bottom diameter. Increase it or turn optimization off.");
+assert(top_style != "tube" || top_sized > 0,
+       "The print allowance removes the whole top diameter. Increase it or turn optimization off.");
 assert(tube_id > 0.5,
        "Wall thickness leaves no airflow. Reduce it or increase the diameter.");
+assert(top_style != "tube" || top_tube_id > 0.5,
+       "Wall thickness leaves no airflow in the top tube. Reduce it or increase the top diameter.");
 assert(alignment == "center" || alignment == "edge",
        "alignment must be \"center\" or \"edge\"");
 assert(angle >= -90 && angle <= 90,
@@ -351,7 +481,7 @@ transition_h = max(
     max(abs(tube_od - socket_od) * 0.7, abs(tube_id - socket_exit_d) * 0.7)
 );
 
-// Shift that puts the tube's +X wall on the socket's +X wall.
+// Shift that puts the tube's +X wall on the top's +X wall.
 edge_offset = (alignment == "edge") ? (socket_od - tube_od) / 2 : 0;
 // Centerline radius of a bend. Large enough that the passage stays open.
 bend_r = max(socket_od, tube_od) * 0.8;
@@ -436,10 +566,10 @@ module orient_z_to(dir) {
     }
 }
 
-// Passage through the socket. The socket base is z = 0.
-module socket_void() {
+// Passage through the CLEANTEC socket. The socket base is z = 0.
+module cleantec_void() {
     translate([0, 0, -eps])
-        cylinder(h = 6 + eps, r1 = socket_exit_d / 2, r2 = bore_r);
+        cylinder(h = 6 + eps, r1 = cleantec_exit_d / 2, r2 = bore_r);
     translate([0, 0, 6 - eps])
         cylinder(h = 32.2 + 2 * eps, r = bore_r);
     translate([0, 0, 38.2 - eps])
@@ -447,14 +577,95 @@ module socket_void() {
     translate([0, 0, 40 - eps])
         cylinder(h = 3.8 + 2 * eps, r = mouth_d / 2);
     translate([0, 0, 43.8 - eps])
-        cylinder(h = socket_h - 43.8 + 1,
-                 r1 = mouth_d / 2, r2 = socket_od / 2 - 0.65);
+        cylinder(h = cleantec_h - 43.8 + 1,
+                 r1 = mouth_d / 2, r2 = cleantec_od / 2 - 0.65);
 }
 
-module socket_lips() {
+module cleantec_lips() {
     locking_lip(lip_deep_r, lip_centers[0]);
     locking_lip(lip_deep_r, lip_centers[1]);
     locking_lip(lip_shallow_r, lip_centers[2]);
+}
+
+// Male Dyson V6 tool tip. Tools slide on from +Z. Base is z = 0.
+// Built as one solid of revolution plus four shallow collar notches so the
+// mesh stays a single manifold volume.
+module dyson_solid() {
+    od_r = dyson_od / 2;
+    groove_r = dyson_groove_d / 2;
+    clip_r = od_r + dyson_clip_wall;
+    tip_z1 = dyson_tip_h;
+    tip_z2 = tip_z1 + dyson_groove_h;
+    tip_z3 = tip_z2 + dyson_groove_taper_h;
+    clip_z0 = dyson_clip_z - 0.5;
+    clip_z1 = clip_z0 + dyson_clip_len;
+
+    // Profile on the +X side, spun around Z. The retaining groove is a
+    // reduced outer radius; the collar is a short thicker band.
+    rotate_extrude(convexity = 6)
+        polygon([
+            [0, 0],
+            [od_r, 0],
+            [od_r, tip_z1],
+            [groove_r, tip_z1],
+            [groove_r, tip_z2],
+            [od_r, tip_z3],
+            [od_r, clip_z0],
+            [clip_r, clip_z0],
+            [clip_r, clip_z1],
+            [od_r, clip_z1],
+            [0, clip_z1],
+        ]);
+}
+
+module dyson_void() {
+    od_r = dyson_od / 2;
+    id_r = dyson_id / 2;
+    clip_z0 = dyson_clip_z - 0.5;
+
+    // Air passage.
+    translate([0, 0, -eps])
+        cylinder(h = dyson_h + 2 * eps, r = id_r);
+
+    // Four orientation notches in the collar. Each cut stops short of the
+    // main shaft so the collar stays one piece.
+    translate([0, 0, clip_z0 - eps])
+        for (a = [0, 90, 180, 270])
+            rotate([0, 0, a])
+                translate([
+                    -(dyson_clip_width + 1) / 2,
+                    -(od_r + dyson_clip_wall + 0.2),
+                    0
+                ])
+                    cube([
+                        dyson_clip_width + 1,
+                        dyson_clip_wall + 0.4,
+                        dyson_clip_len + 2 * eps
+                    ]);
+}
+
+module top_void() {
+    if (top_style == "cleantec")
+        cleantec_void();
+    else if (top_style == "dyson")
+        dyson_void();
+    else
+        translate([0, 0, -eps])
+            cylinder(h = top_wall_length + 2 * eps, r = top_tube_id / 2);
+}
+
+module top_solid() {
+    if (top_style == "cleantec")
+        cylinder(h = cleantec_h + eps, r = cleantec_od / 2);
+    else if (top_style == "dyson")
+        dyson_solid();
+    else
+        cylinder(h = top_wall_length + eps, r = top_tube_od / 2);
+}
+
+module top_extras() {
+    if (top_style == "cleantec")
+        cleantec_lips();
 }
 
 module centered_adapter() {
@@ -469,7 +680,7 @@ module centered_adapter() {
                 cylinder(h = transition_h + 2 * eps,
                          r1 = tube_od / 2, r2 = socket_od / 2);
             translate([0, 0, z_sock0 - eps])
-                cylinder(h = socket_h + eps, r = socket_od / 2);
+                top_solid();
         }
 
         union() {
@@ -478,14 +689,14 @@ module centered_adapter() {
             translate([0, 0, z_tube1 - eps])
                 cylinder(h = transition_h + 2 * eps,
                          r1 = tube_id / 2, r2 = socket_exit_d / 2);
-            translate([0, 0, z_sock0]) socket_void();
+            translate([0, 0, z_sock0]) top_void();
         }
     }
 
-    translate([0, 0, z_sock0]) socket_lips();
+    translate([0, 0, z_sock0]) top_extras();
 }
 
-// Straight tube, shifted so its +X wall is flush with the socket's +X wall.
+// Straight tube, shifted so its +X wall is flush with the top's +X wall.
 module edge_adapter() {
     z_tube1 = wall_length;
     z_sock0 = wall_length + transition_h;
@@ -501,7 +712,7 @@ module edge_adapter() {
                     cylinder(h = 0.4, r = socket_od / 2, center = true);
             }
             translate([0, 0, z_sock0 - eps])
-                cylinder(h = socket_h + eps, r = socket_od / 2);
+                top_solid();
         }
 
         union() {
@@ -513,11 +724,11 @@ module edge_adapter() {
                 translate([0, 0, z_sock0 + 0.2])
                     cylinder(h = 0.4, r = socket_exit_d / 2, center = true);
             }
-            translate([0, 0, z_sock0]) socket_void();
+            translate([0, 0, z_sock0]) top_void();
         }
     }
 
-    translate([0, 0, z_sock0]) socket_lips();
+    translate([0, 0, z_sock0]) top_extras();
 }
 
 module arc_station(u, radius) {
@@ -532,7 +743,7 @@ module disk_at(pos, dir, radius) {
             cylinder(h = 0.8, r = radius, center = true);
 }
 
-// Socket base at the origin. A positive angle bends toward +X, a negative angle toward -X.
+// Top base at the origin. A positive angle bends toward +X, a negative angle toward -X.
 // Along one edge, one smooth curve shifts the tube onto the flush wall as it turns.
 module bent_adapter() {
     edge = alignment == "edge";
@@ -567,7 +778,7 @@ module bent_adapter() {
                     orient_z_to(tube_dir)
                         cylinder(h = wall_length, r = tube_od / 2);
                 translate([0, 0, -eps])
-                    cylinder(h = socket_h + eps, r = socket_od / 2);
+                    top_solid();
             }
 
             union() {
@@ -589,11 +800,11 @@ module bent_adapter() {
                 translate(tube_origin - tube_dir * 0.4)
                     orient_z_to(tube_dir)
                         cylinder(h = wall_length + 1.4, r = tube_id / 2);
-                socket_void();
+                top_void();
             }
         }
 
-        socket_lips();
+        top_extras();
     }
 }
 
@@ -628,8 +839,11 @@ module adapter() {
 
 adapter();
 
+echo(Top_style = top_style);
 echo(Tube_ID = tube_id);
 echo(Tube_OD = tube_od);
+echo(Top_ID = socket_exit_d);
+echo(Top_OD = socket_od);
 echo(Transition_h = transition_h);
 echo(Total_length = wall_length + transition_h + socket_h);
 echo(Edge_offset = edge_offset);
@@ -651,12 +865,22 @@ echo(Blend_len = blend_len);
       return Number(paramLine(name));
     }
 
-    const SOCKET = {
-      od: constant("socket_od"),
-      h: constant("socket_h"),
-      exitD: constant("socket_exit_d"),
+    const CLEANTEC = {
+      od: constant("cleantec_od"),
+      h: constant("cleantec_h"),
+      exitD: constant("cleantec_exit_d"),
       boreD: constant("bore_d"),
       mouthD: constant("mouth_d"),
+    };
+    const DYSON = {
+      od: constant("dyson_od_nom"),
+      id: constant("dyson_id_nom"),
+      h: constant("dyson_h"),
+      tipH: constant("dyson_tip_h"),
+      grooveH: constant("dyson_groove_h"),
+      grooveTaperH: constant("dyson_groove_taper_h"),
+      grooveD: constant("dyson_groove_d"),
+      clipWall: constant("dyson_clip_wall"),
     };
 
     function fmt(value) {
@@ -680,10 +904,22 @@ echo(Blend_len = blend_len);
       const length = readNumber("length");
       const thickness = readNumber("thickness");
       const angle = readNumber("angle");
+      const topDiameter = readNumber("top_diameter");
+      const topLength = readNumber("top_length");
       const measurement = document.querySelector('input[name="measurement"]:checked')?.value;
+      const topMeasurement = document.querySelector('input[name="top_measurement"]:checked')?.value;
+      const topStyle = document.querySelector('input[name="top_style"]:checked')?.value;
       const alignment = document.querySelector('input[name="alignment"]:checked')?.value;
       const optimize = document.getElementById("optimize").checked;
-      return { diameter, length, thickness, measurement, alignment, angle, optimize };
+      return {
+        diameter, length, thickness, measurement, alignment, angle, optimize,
+        topStyle, topDiameter, topMeasurement, topLength,
+      };
+    }
+
+    function syncTopFields() {
+      const topStyle = document.querySelector('input[name="top_style"]:checked')?.value;
+      document.getElementById("top-tube-fields").hidden = topStyle !== "tube";
     }
 
     function scadCos(degrees) {
@@ -695,7 +931,7 @@ echo(Blend_len = blend_len);
     }
 
     function edgeOffsetOf(spec) {
-      return spec.alignment === "edge" ? (SOCKET.od - spec.tubeOd) / 2 : 0;
+      return spec.alignment === "edge" ? (spec.topOd - spec.tubeOd) / 2 : 0;
     }
 
     function smooth(s) { return s * s * (3 - 2 * s); }
@@ -708,7 +944,7 @@ echo(Blend_len = blend_len);
       const angle = spec.angle;
       const side = angle < 0 ? -1 : 1;
       const mag = Math.abs(angle);
-      const bendR = Math.max(SOCKET.od, spec.tubeOd) * 0.8;
+      const bendR = Math.max(spec.topOd, spec.tubeOd) * 0.8;
       const shiftLen = Math.sqrt(8 * Math.abs(off) * spec.tubeOd);
       const arcLen = bendR * mag * Math.PI / 180;
       const blend = spec.alignment === "edge"
@@ -763,7 +999,7 @@ echo(Blend_len = blend_len);
     }
 
     function partSize(spec) {
-      const sockR = SOCKET.od / 2;
+      const sockR = spec.topOd / 2 + (spec.topStyle === "dyson" ? DYSON.clipWall : 0);
       const tubeR = spec.tubeOd / 2;
       if (spec.angle === 0) {
         const off = edgeOffsetOf(spec);
@@ -784,34 +1020,46 @@ echo(Blend_len = blend_len);
       }
       if (g.blend > 0) {
         for (let i = 0; i <= g.steps; i++) {
-          const outerR = sockR + (tubeR - sockR) * smooth(i / g.steps);
+          const outerR = spec.topOd / 2 + (tubeR - spec.topOd / 2) * smooth(i / g.steps);
           add(g.centers[i], g.tangents[i], outerR);
         }
       } else {
         const steps = Math.max(24, Math.round(Math.abs(spec.angle)));
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
-          add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t);
+          add(g.pos(t), g.tangent(t), spec.topOd / 2 + (tubeR - spec.topOd / 2) * t);
         }
       }
       add(g.tubeEnd, g.dir, tubeR);
       box.minX = Math.min(box.minX, -sockR);
       box.maxX = Math.max(box.maxX, sockR);
-      // The model sits on the tube-end rim, and the socket mouth is the top.
-      return { width: box.maxX - box.minX, height: g.lift + SOCKET.h };
+      // The model sits on the tube-end rim, and the top mouth is the top.
+      return { width: box.maxX - box.minX, height: g.lift + spec.topH };
     }
 
     function describe(input) {
-      const { diameter, length, thickness, measurement, alignment, angle, optimize } = input;
-      if (!measurement) return { error: "Choose inner or outer diameter." };
+      const {
+        diameter, length, thickness, measurement, alignment, angle, optimize,
+        topStyle, topDiameter, topMeasurement, topLength,
+      } = input;
+      if (!topStyle) return { error: "Choose a top connector." };
+      if (!measurement) return { error: "Choose inner or outer diameter for the bottom tube." };
+      if (topStyle === "tube" && !topMeasurement) {
+        return { error: "Choose inner or outer diameter for the top tube." };
+      }
       if (alignment !== "center" && alignment !== "edge") {
         return { error: "Choose centered or along one edge." };
       }
-      if (![diameter, length, thickness, angle].every(Number.isFinite)) {
-        return { error: "Enter a number for diameter, tube length, wall thickness, and angle." };
+      const required = [diameter, length, thickness, angle];
+      if (topStyle === "tube") required.push(topDiameter, topLength);
+      if (!required.every(Number.isFinite)) {
+        return { error: "Enter a number for every size field." };
       }
       if (diameter <= 0 || length <= 0 || thickness <= 0) {
         return { error: "Diameter, tube length, and wall thickness must be positive." };
+      }
+      if (topStyle === "tube" && (topDiameter <= 0 || topLength <= 0)) {
+        return { error: "Top diameter and top tube length must be positive." };
       }
       if (angle < -90 || angle > 90) {
         return { error: "Angle must be from -90 to 90 degrees." };
@@ -819,21 +1067,52 @@ echo(Blend_len = blend_len);
       const allowance = optimize ? 0.2 : 0;
       const sized = measurement === "outer" ? diameter - allowance : diameter + allowance;
       if (sized <= 0) {
-        return { error: "The print allowance removes the whole diameter. Increase it or turn optimization off." };
+        return { error: "The print allowance removes the whole bottom diameter. Increase it or turn optimization off." };
       }
       const tubeId = measurement === "outer" ? sized - 2 * thickness : sized;
       const tubeOd = measurement === "outer" ? sized : sized + 2 * thickness;
       if (tubeId <= 0.5) {
         return { error: "Wall thickness leaves no airflow. Reduce it or increase the diameter." };
       }
+
+      let topOd, topId, topH, topBoreD, topMouthD;
+      if (topStyle === "cleantec") {
+        topOd = CLEANTEC.od;
+        topId = CLEANTEC.exitD;
+        topH = CLEANTEC.h;
+        topBoreD = CLEANTEC.boreD;
+        topMouthD = CLEANTEC.mouthD;
+      } else if (topStyle === "dyson") {
+        topOd = DYSON.od - allowance;
+        topId = DYSON.id;
+        topH = DYSON.h;
+        topBoreD = DYSON.id;
+        topMouthD = DYSON.id;
+      } else {
+        const topSized = topMeasurement === "outer" ? topDiameter - allowance : topDiameter + allowance;
+        if (topSized <= 0) {
+          return { error: "The print allowance removes the whole top diameter. Increase it or turn optimization off." };
+        }
+        topId = topMeasurement === "outer" ? topSized - 2 * thickness : topSized;
+        topOd = topMeasurement === "outer" ? topSized : topSized + 2 * thickness;
+        if (topId <= 0.5) {
+          return { error: "Wall thickness leaves no airflow in the top tube. Reduce it or increase the top diameter." };
+        }
+        topH = topLength;
+        topBoreD = topId;
+        topMouthD = topId;
+      }
+
       const transition = Math.max(
         8,
-        Math.abs(tubeOd - SOCKET.od) * 0.7,
-        Math.abs(tubeId - SOCKET.exitD) * 0.7
+        Math.abs(tubeOd - topOd) * 0.7,
+        Math.abs(tubeId - topId) * 0.7
       );
-      const total = length + transition + SOCKET.h;
+      const total = length + transition + topH;
       const spec = {
-        diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, optimize, transition, total,
+        diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, optimize,
+        transition, total, topStyle, topDiameter, topMeasurement, topLength,
+        topOd, topId, topH, topBoreD, topMouthD,
       };
       const size = partSize(spec);
       spec.width = size.width;
@@ -841,25 +1120,54 @@ echo(Blend_len = blend_len);
       return spec;
     }
 
+    function topLabel(spec) {
+      if (spec.topStyle === "cleantec") return "CLEANTEC socket";
+      if (spec.topStyle === "dyson") return "Dyson V6 connector";
+      return "top tube";
+    }
+
     function summaryText(spec) {
-      const face = spec.measurement === "outer" ? "Outer tube" : "Inner tube";
+      const face = spec.measurement === "outer" ? "Outer bottom" : "Inner bottom";
       const place = spec.alignment === "edge" ? "along one edge" : "centered";
+      let topBit;
+      if (spec.topStyle === "tube") {
+        topBit = "Top tube " + display(spec.topId) + " / " + display(spec.topOd) + " mm";
+      } else if (spec.topStyle === "dyson") {
+        topBit = "Dyson V6 " + display(spec.topOd) + " mm across";
+      } else {
+        topBit = "CLEANTEC " + display(spec.topOd) + " mm across";
+      }
       let tail;
       if (spec.angle !== 0) {
-        tail = "bent " + fmt(spec.angle) + "°. The CLEANTEC socket is " +
-          display(SOCKET.od) + " mm across. Overall " + display(spec.height) +
+        tail = "bent " + fmt(spec.angle) + "°. " + topBit +
+          ". Overall " + display(spec.height) +
           " mm tall and " + display(spec.width) + " mm wide. The elbow may need support.";
       } else {
-        tail = "straight. The CLEANTEC socket is " +
-          display(SOCKET.od) + " mm across and " + display(SOCKET.h) +
-          " mm long, with a transition of " + display(spec.transition) +
+        tail = "straight. " + topBit +
+          (spec.topStyle === "cleantec"
+            ? " and " + display(spec.topH) + " mm long"
+            : "") +
+          ", with a transition of " + display(spec.transition) +
           " mm. Overall length " + display(spec.total) + " mm.";
       }
       let fit = "";
       if (spec.optimize) {
-        fit = spec.measurement === "outer"
-          ? " The outer diameter is printed 0.2 mm smaller than " + display(spec.diameter) + " mm."
-          : " The inner diameter is printed 0.2 mm larger than " + display(spec.diameter) + " mm.";
+        const bits = [];
+        bits.push(
+          spec.measurement === "outer"
+            ? "bottom outer printed 0.2 mm smaller than " + display(spec.diameter) + " mm"
+            : "bottom inner printed 0.2 mm larger than " + display(spec.diameter) + " mm"
+        );
+        if (spec.topStyle === "tube") {
+          bits.push(
+            spec.topMeasurement === "outer"
+              ? "top outer printed 0.2 mm smaller than " + display(spec.topDiameter) + " mm"
+              : "top inner printed 0.2 mm larger than " + display(spec.topDiameter) + " mm"
+          );
+        } else if (spec.topStyle === "dyson") {
+          bits.push("Dyson outer printed 0.2 mm smaller");
+        }
+        fit = " Print fit: " + bits.join("; ") + ".";
       }
       return (
         face + ", " + display(spec.tubeId) + " mm inside and " + display(spec.tubeOd) +
@@ -870,6 +1178,10 @@ echo(Blend_len = blend_len);
     function withParams(spec) {
       let source = SOURCE.trim() + "\n";
       source = source
+        .replace(/^top_style = "[^"]+";/m, 'top_style = "' + spec.topStyle + '";')
+        .replace(/^top_diameter = [^;]+;/m, "top_diameter = " + fmt(spec.topDiameter || 28) + ";")
+        .replace(/^top_measurement = "[^"]+";/m, 'top_measurement = "' + (spec.topMeasurement || "inner") + '";')
+        .replace(/^top_wall_length = [^;]+;/m, "top_wall_length = " + fmt(spec.topLength || 40) + ";")
         .replace(/^diameter = [^;]+;/m, "diameter = " + fmt(spec.diameter) + ";")
         .replace(/^measurement = "[^"]+";/m, 'measurement = "' + spec.measurement + '";')
         .replace(/^optimize_print = [^;]+;/m, "optimize_print = " + (spec.optimize ? "true" : "false") + ";")
@@ -877,8 +1189,11 @@ echo(Blend_len = blend_len);
         .replace(/^wall_thickness = [^;]+;/m, "wall_thickness = " + fmt(spec.thickness) + ";")
         .replace(/^alignment = "[^"]+";/m, 'alignment = "' + spec.alignment + '";')
         .replace(/^angle = [^;]+;/m, "angle = " + fmt(spec.angle) + ";");
+      const topNote = spec.topStyle === "tube"
+        ? "tube " + spec.topMeasurement + " " + fmt(spec.topDiameter) + " mm"
+        : (spec.topStyle === "dyson" ? "Dyson V6" : "CLEANTEC");
       const note =
-        "// Tube " + spec.measurement + " diameter " + fmt(spec.diameter) +
+        "// Top " + topNote + ", bottom " + spec.measurement + " diameter " + fmt(spec.diameter) +
         " mm, length " + fmt(spec.length) + " mm, wall " + fmt(spec.thickness) +
         " mm, " + spec.alignment + ", angle " + fmt(spec.angle) + " deg" +
         (spec.optimize ? ", print fit 0.2 mm" : "") + ".\n";
@@ -887,8 +1202,12 @@ echo(Blend_len = blend_len);
 
     function filename(spec) {
       const side = spec.measurement === "outer" ? "od" : "id";
-      let name = "cleantec-adapter-" + side + fmt(spec.diameter) +
+      let name = "adapter-" + spec.topStyle + "-" + side + fmt(spec.diameter) +
         "-len" + fmt(spec.length) + "-wall" + fmt(spec.thickness);
+      if (spec.topStyle === "tube") {
+        const topSide = spec.topMeasurement === "outer" ? "od" : "id";
+        name += "-top" + topSide + fmt(spec.topDiameter);
+      }
       if (spec.alignment === "edge") name += "-edge";
       if (spec.angle !== 0) name += "-a" + fmt(spec.angle);
       if (spec.optimize) name += "-fit";
@@ -907,42 +1226,124 @@ echo(Blend_len = blend_len);
     }
 
     function sectionProfile(spec) {
-      const sockR = SOCKET.od / 2;
+      const sockR = spec.topOd / 2;
       const tubeR = spec.tubeOd / 2;
       const tubeRi = spec.tubeId / 2;
-      const exitR = SOCKET.exitD / 2;
-      const boreR = SOCKET.boreD / 2;
-      const mouthR = SOCKET.mouthD / 2;
+      const exitR = spec.topId / 2;
+      const boreR = spec.topBoreD / 2;
+      const mouthR = spec.topMouthD / 2;
+      const clipR = spec.topStyle === "dyson" ? sockR + DYSON.clipWall : sockR;
+
+      function topInner(zBase) {
+        if (spec.topStyle === "cleantec") {
+          return [
+            [-exitR, zBase],
+            [-boreR, zBase + 6],
+            [-boreR, zBase + 40],
+            [-mouthR, zBase + spec.topH],
+            [mouthR, zBase + spec.topH],
+            [boreR, zBase + 40],
+            [boreR, zBase + 6],
+            [exitR, zBase],
+          ];
+        }
+        if (spec.topStyle === "dyson") {
+          const g0 = zBase + DYSON.tipH;
+          const g1 = g0 + DYSON.grooveH;
+          const g2 = g1 + DYSON.grooveTaperH;
+          const grooveR = DYSON.grooveD / 2;
+          return [
+            [-exitR, zBase],
+            [-exitR, g0],
+            [-grooveR, g0],
+            [-grooveR, g1],
+            [-sockR, g2],
+            [-exitR, g2],
+            [-exitR, zBase + spec.topH],
+            [exitR, zBase + spec.topH],
+            [exitR, g2],
+            [sockR, g2],
+            [grooveR, g1],
+            [grooveR, g0],
+            [exitR, g0],
+            [exitR, zBase],
+          ];
+        }
+        return [
+          [-exitR, zBase],
+          [-exitR, zBase + spec.topH],
+          [exitR, zBase + spec.topH],
+          [exitR, zBase],
+        ];
+      }
+
+      function topOuter(zBase) {
+        if (spec.topStyle === "dyson") {
+          const clipZ = zBase + 36.5;
+          return [
+            [-sockR, zBase],
+            [-sockR, clipZ],
+            [-clipR, clipZ],
+            [-clipR, clipZ + DYSON.clipWall * 3.8],
+            [-sockR, clipZ + DYSON.clipWall * 3.8],
+            [-sockR, zBase + spec.topH],
+            [sockR, zBase + spec.topH],
+            [sockR, clipZ + DYSON.clipWall * 3.8],
+            [clipR, clipZ + DYSON.clipWall * 3.8],
+            [clipR, clipZ],
+            [sockR, clipZ],
+            [sockR, zBase],
+          ];
+        }
+        return [
+          [-sockR, zBase],
+          [-sockR, zBase + spec.topH],
+          [sockR, zBase + spec.topH],
+          [sockR, zBase],
+        ];
+      }
+
       if (spec.angle === 0) {
         const off = edgeOffsetOf(spec);
         const z1 = spec.length;
         const z2 = spec.length + spec.transition;
         const z3 = spec.total;
+        const topOut = topOuter(z2);
         const outer = [
           [off - tubeR, 0],
           [off - tubeR, z1],
           [-sockR, z2],
-          [-sockR, z3],
-          [sockR, z3],
+          ...topOut.slice(0, topOut.length / 2),
+          ...topOut.slice(topOut.length / 2),
           [sockR, z2],
           [off + tubeR, z1],
           [off + tubeR, 0],
         ];
+        // Rebuild outer more carefully for dyson collar.
+        const leftTop = topOut.filter((_, i) => i < topOut.length / 2);
+        const rightTop = topOut.filter((_, i) => i >= topOut.length / 2);
+        const outer2 = [
+          [off - tubeR, 0],
+          [off - tubeR, z1],
+          [-sockR, z2],
+          ...leftTop,
+          ...rightTop,
+          [sockR, z2],
+          [off + tubeR, z1],
+          [off + tubeR, 0],
+        ];
+        const innerTop = topInner(z2);
+        const leftAir = innerTop.filter((_, i) => i < innerTop.length / 2);
+        const rightAir = innerTop.filter((_, i) => i >= innerTop.length / 2);
         const inner = [
           [off - tubeRi, 0],
           [off - tubeRi, z1],
-          [-exitR, z2],
-          [-boreR, z2 + 6],
-          [-boreR, z2 + 40],
-          [-mouthR, z3],
-          [mouthR, z3],
-          [boreR, z2 + 40],
-          [boreR, z2 + 6],
-          [exitR, z2],
+          ...leftAir,
+          ...rightAir,
           [off + tubeRi, z1],
           [off + tubeRi, 0],
         ];
-        return { outer, inner };
+        return { outer: outer2, inner };
       }
 
       const g = bendGeometry(spec);
@@ -976,28 +1377,26 @@ echo(Blend_len = blend_len);
         ]);
         return {
           outer: [
-            shift([-sockR, SOCKET.h]),
+            shift([-sockR, spec.topH]),
             ...left,
             endLeft,
             endRight,
             ...right.slice().reverse(),
-            shift([sockR, SOCKET.h]),
+            shift([sockR, spec.topH]),
           ],
           inner: [
             endLeftAir,
             ...leftAir.slice().reverse(),
-            shift([-boreR, 6]),
-            shift([-boreR, 40]),
-            shift([-mouthR, SOCKET.h]),
-            shift([mouthR, SOCKET.h]),
-            shift([boreR, 40]),
-            shift([boreR, 6]),
+            shift([-boreR, Math.min(6, spec.topH)]),
+            shift([-mouthR, spec.topH]),
+            shift([mouthR, spec.topH]),
+            shift([boreR, Math.min(6, spec.topH)]),
             ...rightAir,
             endRightAir,
           ],
         };
       }
-      // Points to the inside of the elbow. At the socket this is +X for a positive angle.
+      // Points to the inside of the elbow. At the top this is +X for a positive angle.
       function inward(t) {
         const [tx, tz] = g.tangent(t);
         return [-tz * g.side, tx * g.side];
@@ -1044,25 +1443,23 @@ echo(Blend_len = blend_len);
       const leftEndAir = g.side < 0 ? endInAir : endOutAir;
       const rightEndAir = g.side < 0 ? endOutAir : endInAir;
       const outer = [
-        shift([-sockR, SOCKET.h]),
+        shift([-sockR, spec.topH]),
         shift([-sockR, 0]),
         ...leftWall,
         leftEnd,
         rightEnd,
         ...rightWall.slice().reverse(),
         shift([sockR, 0]),
-        shift([sockR, SOCKET.h]),
+        shift([sockR, spec.topH]),
       ];
       const inner = [
         leftEndAir,
         ...leftAir.slice().reverse(),
         shift([-exitR, 0]),
-        shift([-boreR, 6]),
-        shift([-boreR, 40]),
-        shift([-mouthR, SOCKET.h]),
-        shift([mouthR, SOCKET.h]),
-        shift([boreR, 40]),
-        shift([boreR, 6]),
+        shift([-boreR, Math.min(6, spec.topH)]),
+        shift([-mouthR, spec.topH]),
+        shift([mouthR, spec.topH]),
+        shift([boreR, Math.min(6, spec.topH)]),
         shift([exitR, 0]),
         ...rightAir,
         rightEndAir,
@@ -1090,7 +1487,7 @@ echo(Blend_len = blend_len);
       const chain = (points) => points.map(([x, z]) => xOf(x).toFixed(2) + "," + yOf(z).toFixed(2)).join(" ");
 
       const title =
-        "Side view. The socket mouth is at the top. " + summaryText(spec);
+        "Side view. The top mouth is at the top. " + summaryText(spec);
       const dim = (x1, y1, x2, y2) =>
         '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) +
         '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="#8a8175" stroke-width="1"/>';
@@ -1118,13 +1515,15 @@ echo(Blend_len = blend_len);
           midY.toFixed(1) + ')" fill="#5c564c" font-size="13">' + heightLabel + "</text>" +
         widthDim +
         '<text x="' + labelX.toFixed(1) + '" y="' + (midY - 8).toFixed(1) +
-          '" fill="#1c1915" font-size="13">Tube ' + display(spec.tubeId) + " / " +
+          '" fill="#1c1915" font-size="13">Bottom ' + display(spec.tubeId) + " / " +
           display(spec.tubeOd) + " mm</text>" +
         '<text x="' + labelX.toFixed(1) + '" y="' + (midY + 8).toFixed(1) +
           '" fill="#5c564c" font-size="12">inside / outside</text>' +
         '<text x="' + labelX.toFixed(1) + '" y="' + (midY + 28).toFixed(1) +
-          '" fill="#1c1915" font-size="13">Socket ' + display(SOCKET.od) + " mm</text>" +
-        '<text x="' + xOf(0).toFixed(1) + '" y="18" text-anchor="middle" fill="#5c564c" font-size="12">mouth, twist-lock</text>';
+          '" fill="#1c1915" font-size="13">' + topLabel(spec) + "</text>" +
+        '<text x="' + xOf(0).toFixed(1) + '" y="18" text-anchor="middle" fill="#5c564c" font-size="12">' +
+          (spec.topStyle === "cleantec" ? "mouth, twist-lock" :
+            spec.topStyle === "dyson" ? "Dyson tip" : "top tube") + "</text>";
     }
 
     let stlBusy = false;
@@ -1176,6 +1575,7 @@ echo(Blend_len = blend_len);
     }
 
     function refresh() {
+      syncTopFields();
       const input = readForm();
       const result = describe(input);
       const error = document.getElementById("error");
@@ -1190,6 +1590,8 @@ echo(Blend_len = blend_len);
       setButtons(false);
       summary.textContent = summaryText(result);
       result.diameter = input.diameter;
+      result.topDiameter = input.topDiameter;
+      result.topLength = input.topLength;
       draw(result);
     }
 
@@ -1199,8 +1601,14 @@ echo(Blend_len = blend_len);
       document.getElementById("thickness").value = paramLine("wall_thickness");
       document.getElementById("angle").value = paramLine("angle");
       document.getElementById("angle-range").value = paramLine("angle");
+      document.getElementById("top_diameter").value = paramLine("top_diameter");
+      document.getElementById("top_length").value = paramLine("top_wall_length");
       const measurement = paramLine("measurement");
       document.querySelector('input[name="measurement"][value="' + measurement + '"]').checked = true;
+      const topMeasurement = paramLine("top_measurement");
+      document.querySelector('input[name="top_measurement"][value="' + topMeasurement + '"]').checked = true;
+      const topStyle = paramLine("top_style");
+      document.querySelector('input[name="top_style"][value="' + topStyle + '"]').checked = true;
       const alignment = paramLine("alignment");
       document.querySelector('input[name="alignment"][value="' + alignment + '"]').checked = true;
       document.getElementById("optimize").checked = paramLine("optimize_print") === "true";
@@ -1221,6 +1629,8 @@ echo(Blend_len = blend_len);
           return;
         }
         result.diameter = input.diameter;
+        result.topDiameter = input.topDiameter;
+        result.topLength = input.topLength;
         download(result);
       });
       document.getElementById("download-stl").addEventListener("click", () => {
@@ -1231,6 +1641,8 @@ echo(Blend_len = blend_len);
           return;
         }
         result.diameter = input.diameter;
+        result.topDiameter = input.topDiameter;
+        result.topLength = input.topLength;
         downloadStl(result);
       });
       refresh();
