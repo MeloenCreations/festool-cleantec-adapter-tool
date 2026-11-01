@@ -8,7 +8,11 @@
 // sized end (bottom tube, top tube, and the Dyson connector). The bottom
 // tube can stay centered or slide across until one outer wall lines up
 // with the top, and it can leave the top at an angle from -90 to 90
-// degrees.
+// degrees. An optional stopper ridge sits in the transition: inside,
+// outside, or both. Set its length along the axis and its height out
+// from the wall. On a bend the outer shoulder runs farther than the
+// inner one. Optimize for 3D printing also tapers the stopper's top and
+// bottom edges at 45 degrees so the overhang needs no support.
 // Circles are divided into flats 0.25 mm wide, which is finer than a
 // 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
@@ -65,6 +69,16 @@ alignment = "center"; // [center, edge]
 // Bend between the top axis and the bottom tube, in degrees.
 // 0 is straight. Positive bends toward the flush edge, negative the other way.
 angle = 0; // [-90:1:90]
+
+/* [Stopper] */
+// Ridge between the top and bottom. None disables it.
+stopper_side = "none"; // [none, inside, outside, both]
+
+// How far the stopper runs along the adapter axis, in millimetres.
+stopper_length = 4; // [0.5:0.1:40]
+
+// How far the stopper sticks out from the wall, in millimetres.
+stopper_height = 3; // [0.5:0.1:40]
 
 /* [Print] */
 // Longest flat on a circle, in millimetres.
@@ -169,13 +183,38 @@ assert(alignment == "center" || alignment == "edge",
        "alignment must be \"center\" or \"edge\"");
 assert(angle >= -90 && angle <= 90,
        "Angle must be from -90 to 90 degrees.");
+assert(
+    stopper_side == "none" || stopper_side == "inside" ||
+    stopper_side == "outside" || stopper_side == "both",
+    "stopper_side must be \"none\", \"inside\", \"outside\", or \"both\""
+);
+assert(stopper_side == "none" || (stopper_length > 0 && stopper_height > 0),
+       "Stopper length and height must be positive.");
 assert(facet > 0, "Facet size must be positive.");
 
+stopper_on = stopper_side != "none";
+stopper_inside = stopper_side == "inside" || stopper_side == "both";
+stopper_outside = stopper_side == "outside" || stopper_side == "both";
+
 // Long enough that the outside cone stays within about 35 degrees of vertical.
+// A stopper sits in this band, so keep room for its length.
 transition_h = max(
     8,
-    max(abs(tube_od - socket_od) * 0.7, abs(tube_id - socket_exit_d) * 0.7)
+    max(
+        max(abs(tube_od - socket_od) * 0.7, abs(tube_id - socket_exit_d) * 0.7),
+        stopper_on ? stopper_length : 0
+    )
 );
+
+min_bore_r = min(tube_id, socket_exit_d) / 2;
+assert(
+    !stopper_inside || min_bore_r - stopper_height > 0.5,
+    "Inside stopper closes the airflow. Reduce stopper height or increase the diameter."
+);
+// 45° print tapers on the stopper's top and bottom edges when optimizing.
+stopper_chamfer = (optimize_print && stopper_on)
+    ? min(stopper_height, stopper_length / 2)
+    : 0;
 
 // Shift that puts the tube's +X wall on the top's +X wall.
 edge_offset = (alignment == "edge") ? (socket_od - tube_od) / 2 : 0;
@@ -231,6 +270,17 @@ function arc_dir(u) =
     ) [side * sin(sweep), 0, -cos(sweep)];
 function arc_outer_r(u) = lerp(socket_od / 2, tube_od / 2, u);
 function arc_inner_r(u) = lerp(socket_exit_d / 2, tube_id / 2, u);
+
+// Radial extra of the stopper ridge at distance s along its length.
+// With optimize_print this rises and falls at 45 degrees so the overhang
+// needs no support when the bottom tube sits on the bed.
+function stopper_extra(s) =
+    let (
+        rise = stopper_chamfer > 0
+            ? min(s, stopper_length - s, stopper_chamfer) *
+              (stopper_height / stopper_chamfer)
+            : stopper_height
+    ) max(0, min(stopper_height, rise));
 
 module locking_lip(r_in, center_deg) {
     $fn = resolution;
@@ -364,6 +414,105 @@ module top_extras() {
         cleantec_lips();
 }
 
+// Hull of solid disks, then cut the bore so the ridge stays annular.
+// Hulling rings directly would fill the passage.
+module stopper_pair(pos0, dir0, outer0, inner0, extra0,
+                    pos1, dir1, outer1, inner1, extra1) {
+    thick = 0.8;
+    if (stopper_outside && (extra0 > 0 || extra1 > 0))
+        difference() {
+            hull() {
+                translate(pos0) orient_z_to(dir0)
+                    cylinder(h = thick, r = outer0 + extra0, center = true);
+                translate(pos1) orient_z_to(dir1)
+                    cylinder(h = thick, r = outer1 + extra1, center = true);
+            }
+            hull() {
+                translate(pos0) orient_z_to(dir0)
+                    cylinder(h = thick + 2 * eps, r = max(eps, outer0 - 0.05), center = true);
+                translate(pos1) orient_z_to(dir1)
+                    cylinder(h = thick + 2 * eps, r = max(eps, outer1 - 0.05), center = true);
+            }
+        }
+    if (stopper_inside && (extra0 > 0 || extra1 > 0))
+        difference() {
+            hull() {
+                translate(pos0) orient_z_to(dir0)
+                    cylinder(h = thick, r = inner0 + 0.05, center = true);
+                translate(pos1) orient_z_to(dir1)
+                    cylinder(h = thick, r = inner1 + 0.05, center = true);
+            }
+            hull() {
+                translate(pos0) orient_z_to(dir0)
+                    cylinder(h = thick + 2 * eps, r = max(eps, inner0 - extra0), center = true);
+                translate(pos1) orient_z_to(dir1)
+                    cylinder(h = thick + 2 * eps, r = max(eps, inner1 - extra1), center = true);
+            }
+        }
+}
+
+// Straight stopper between the tube and the top, centred on the transition.
+module straight_stopper(z_tube1, z_sock0, tube_shift = 0) {
+    if (stopper_on) {
+        z0 = z_sock0 - transition_h / 2 - stopper_length / 2;
+        steps = max(4, round(stopper_length / 1.2));
+        for (i = [0 : steps - 1]) {
+            s0 = i * stopper_length / steps;
+            s1 = (i + 1) * stopper_length / steps;
+            t0 = (z0 + s0 - z_tube1) / transition_h;
+            t1 = (z0 + s1 - z_tube1) / transition_h;
+            // Blend the tube's edge shift out across the transition.
+            off0 = tube_shift * (1 - smooth(max(0, min(1, t0))));
+            off1 = tube_shift * (1 - smooth(max(0, min(1, t1))));
+            outer0 = lerp(tube_od / 2, socket_od / 2, max(0, min(1, t0)));
+            outer1 = lerp(tube_od / 2, socket_od / 2, max(0, min(1, t1)));
+            inner0 = lerp(tube_id / 2, socket_exit_d / 2, max(0, min(1, t0)));
+            inner1 = lerp(tube_id / 2, socket_exit_d / 2, max(0, min(1, t1)));
+            stopper_pair(
+                [off0, 0, z0 + s0], [0, 0, 1], outer0, inner0, stopper_extra(s0),
+                [off1, 0, z0 + s1], [0, 0, 1], outer1, inner1, stopper_extra(s1)
+            );
+        }
+    }
+}
+
+// Stopper that follows the bent transition. The shoulder on the outside of
+// the elbow runs farther than the inside, so that wall stretches.
+module bent_stopper(edge) {
+    if (stopper_on) {
+        path_len = edge ? blend_len : bend_r * abs(angle) * 0.01745329252;
+        span = min(stopper_length, max(path_len, 0.1));
+        // Centre the band on the middle of the transition path.
+        s_mid = path_len / 2;
+        s_start = max(0, s_mid - span / 2);
+        steps = max(4, round(span / 1.2));
+        for (i = [0 : steps - 1]) {
+            a0 = s_start + i * span / steps;
+            a1 = s_start + (i + 1) * span / steps;
+            u0 = path_len > 0 ? a0 / path_len : 0;
+            u1 = path_len > 0 ? a1 / path_len : 0;
+            // Distance along the stopper band itself (for the 45° taper).
+            d0 = a0 - s_start;
+            d1 = a1 - s_start;
+            if (edge) {
+                i0 = max(0, min(blend_steps, round(u0 * blend_steps)));
+                i1 = max(0, min(blend_steps, round(u1 * blend_steps)));
+                dir0 = blend_delta(max(1, min(blend_steps, i0 + 1)));
+                dir1 = blend_delta(max(1, min(blend_steps, i1 + 1)));
+                stopper_pair(
+                    blend_pos(i0), dir0, blend_outer_r(i0), blend_inner_r(i0), stopper_extra(d0),
+                    blend_pos(i1), dir1, blend_outer_r(i1), blend_inner_r(i1), stopper_extra(d1)
+                );
+            } else {
+                stopper_pair(
+                    arc_pos(u0), arc_dir(u0), arc_outer_r(u0), arc_inner_r(u0), stopper_extra(d0),
+                    arc_pos(u1), arc_dir(u1), arc_outer_r(u1), arc_inner_r(u1), stopper_extra(d1)
+                );
+            }
+        }
+    }
+}
+
 module centered_adapter() {
     z_tube1 = wall_length;
     z_sock0 = wall_length + transition_h;
@@ -390,6 +539,7 @@ module centered_adapter() {
     }
 
     translate([0, 0, z_sock0]) top_extras();
+    straight_stopper(z_tube1, z_sock0);
 }
 
 // Straight tube, shifted so its +X wall is flush with the top's +X wall.
@@ -425,6 +575,7 @@ module edge_adapter() {
     }
 
     translate([0, 0, z_sock0]) top_extras();
+    straight_stopper(z_tube1, z_sock0, edge_offset);
 }
 
 module arc_station(u, radius) {
@@ -501,6 +652,7 @@ module bent_adapter() {
         }
 
         top_extras();
+        bent_stopper(edge);
     }
 }
 
@@ -546,3 +698,7 @@ echo(Edge_offset = edge_offset);
 echo(Angle = angle);
 echo(Bend_r = bend_r);
 echo(Blend_len = blend_len);
+echo(Stopper_side = stopper_side);
+echo(Stopper_length = stopper_on ? stopper_length : 0);
+echo(Stopper_height = stopper_on ? stopper_height : 0);
+echo(Stopper_chamfer = stopper_chamfer);

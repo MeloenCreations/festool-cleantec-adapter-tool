@@ -24,6 +24,7 @@ SERVE_PORT = 8765
 RENDER_LOCK = threading.Lock()
 PRINT_ALLOWANCE = 0.2
 TOP_STYLES = ("cleantec", "dyson", "tube")
+STOPPER_SIDES = ("none", "inside", "outside", "both")
 CLEANTEC_OD = 44.5
 CLEANTEC_H = 45.4
 CLEANTEC_EXIT_D = 32.0
@@ -43,6 +44,9 @@ PARAM_PATTERNS = {
     "wall_thickness": re.compile(r"^wall_thickness = [^;]+;", re.M),
     "alignment": re.compile(r'^alignment = "[^"]+";', re.M),
     "angle": re.compile(r"^angle = [^;]+;", re.M),
+    "stopper_side": re.compile(r'^stopper_side = "[^"]+";', re.M),
+    "stopper_length": re.compile(r"^stopper_length = [^;]+;", re.M),
+    "stopper_height": re.compile(r"^stopper_height = [^;]+;", re.M),
 }
 
 
@@ -109,6 +113,9 @@ def validate(
     top_diameter: float = 28,
     top_measurement: str = "inner",
     top_length: float = 40,
+    stopper_side: str = "none",
+    stopper_length: float = 4,
+    stopper_height: float = 3,
 ) -> tuple[float, float, float, float, float]:
     if top_style not in TOP_STYLES:
         raise ValueError('top_style must be "cleantec", "dyson", or "tube".')
@@ -118,6 +125,8 @@ def validate(
         raise ValueError('top_measurement must be "inner" or "outer".')
     if alignment not in ("center", "edge"):
         raise ValueError('alignment must be "center" or "edge".')
+    if stopper_side not in STOPPER_SIDES:
+        raise ValueError('stopper_side must be "none", "inside", "outside", or "both".')
     for name, value in (
         ("diameter", diameter),
         ("length", length),
@@ -129,6 +138,10 @@ def validate(
             raise ValueError(f"{name.capitalize()} must be a positive number.")
     if not math.isfinite(angle) or angle < -90 or angle > 90:
         raise ValueError("Angle must be from -90 to 90 degrees.")
+    if stopper_side != "none":
+        for name, value in (("stopper length", stopper_length), ("stopper height", stopper_height)):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name.capitalize()} must be a positive number.")
     sized = eased_diameter(diameter, measurement, optimize)
     tube_id, tube_od = tube_diameters(sized, measurement, thickness)
     if tube_id <= 0.5:
@@ -138,6 +151,12 @@ def validate(
     top_od, top_id, top_h = top_dims(
         top_style, top_diameter, top_measurement, top_length, thickness, optimize
     )
+    if stopper_side in ("inside", "both"):
+        min_bore = min(tube_id, top_id) / 2
+        if min_bore - stopper_height <= 0.5:
+            raise ValueError(
+                "Inside stopper closes the airflow. Reduce stopper height or increase the diameter."
+            )
     return tube_id, tube_od, top_od, top_id, top_h
 
 
@@ -154,6 +173,9 @@ def substitute(
     top_diameter: float = 28,
     top_measurement: str = "inner",
     top_length: float = 40,
+    stopper_side: str = "none",
+    stopper_length: float = 4,
+    stopper_height: float = 3,
 ) -> str:
     validate(
         diameter,
@@ -167,6 +189,9 @@ def substitute(
         top_diameter,
         top_measurement,
         top_length,
+        stopper_side,
+        stopper_length,
+        stopper_height,
     )
     replacements = {
         "top_style": f'top_style = "{top_style}";',
@@ -180,6 +205,9 @@ def substitute(
         "wall_thickness": f"wall_thickness = {fmt(thickness)};",
         "alignment": f'alignment = "{alignment}";',
         "angle": f"angle = {fmt(angle)};",
+        "stopper_side": f'stopper_side = "{stopper_side}";',
+        "stopper_length": f"stopper_length = {fmt(stopper_length)};",
+        "stopper_height": f"stopper_height = {fmt(stopper_height)};",
     }
     updated = source
     for key, pattern in PARAM_PATTERNS.items():
@@ -192,10 +220,15 @@ def substitute(
         "dyson": "Dyson V6",
         "tube": f"tube {top_measurement} {fmt(top_diameter)} mm",
     }[top_style]
+    stop = (
+        f", stopper {stopper_side} {fmt(stopper_length)}x{fmt(stopper_height)} mm"
+        if stopper_side != "none"
+        else ""
+    )
     note = (
         f"// Top {top_note}, bottom {measurement} diameter {fmt(diameter)} mm, "
         f"length {fmt(length)} mm, wall {fmt(thickness)} mm, "
-        f"{alignment}, angle {fmt(angle)} deg{fit}.\n"
+        f"{alignment}, angle {fmt(angle)} deg{stop}{fit}.\n"
     )
     return note + updated
 
@@ -364,7 +397,25 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--optimize-print",
         action="store_true",
-        help="Ease sized diameters by 0.2 mm: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter.",
+        help="Ease sized diameters by 0.2 mm: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter and tapers stopper edges at 45 degrees.",
+    )
+    parser.add_argument(
+        "--stopper",
+        choices=STOPPER_SIDES,
+        default="none",
+        help="Ridge between the top and bottom: none, inside, outside, or both (default none).",
+    )
+    parser.add_argument(
+        "--stopper-length",
+        type=float,
+        default=4,
+        help="Stopper length along the axis in mm (default 4).",
+    )
+    parser.add_argument(
+        "--stopper-height",
+        type=float,
+        default=3,
+        help="Stopper height out from the wall in mm (default 3).",
     )
     parser.add_argument(
         "-o",
@@ -406,6 +457,9 @@ def main(argv: list[str] | None = None) -> int:
             args.top_diameter,
             args.top_measurement,
             args.top_length,
+            args.stopper,
+            args.stopper_length,
+            args.stopper_height,
         )
         if str(args.output) == "-":
             sys.stdout.write(text)

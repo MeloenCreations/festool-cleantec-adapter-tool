@@ -179,6 +179,10 @@ class GenerateTests(unittest.TestCase):
         self.assertIn('name="top_style" value="dyson"', page)
         self.assertIn('name="top_style" value="tube"', page)
         self.assertIn('id="top_diameter"', page)
+        self.assertIn('name="stopper_side" value="both"', page)
+        self.assertIn('id="stopper_length"', page)
+        self.assertIn('id="stopper_height"', page)
+        self.assertIn("tapered 45", page)
 
     def test_print_fit_eases_the_chosen_diameter(self):
         source = generate.load_template()
@@ -255,6 +259,9 @@ class RenderTests(unittest.TestCase):
         top_diameter=28,
         top_measurement="inner",
         top_length=40,
+        stopper_side="none",
+        stopper_length=4,
+        stopper_height=3,
     ):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
@@ -273,6 +280,9 @@ class RenderTests(unittest.TestCase):
                 top_diameter,
                 top_measurement,
                 top_length,
+                stopper_side,
+                stopper_length,
+                stopper_height,
             )
             text = text.replace("resolution = 0;", "resolution = 48;", 1)
             scad.write_text(text, encoding="utf-8")
@@ -644,6 +654,80 @@ class RenderTests(unittest.TestCase):
         self.assertAlmostEqual(echoes_inner["Top_ID"], 28.2)
         self.assertAlmostEqual(echoes_inner["Top_OD"], 34.2)
         self.assertAlmostEqual(echoes_inner["Tube_OD"], 31.8)
+
+    def test_outside_stopper_adds_a_ridge(self):
+        echoes, verts = self.render_case(
+            28, "inner", 40, 3, stopper_side="outside", stopper_length=4, stopper_height=3
+        )
+        self.assertEqual(echoes["Stopper_side"], "outside")
+        self.assertAlmostEqual(echoes["Stopper_length"], 4)
+        self.assertAlmostEqual(echoes["Stopper_height"], 3)
+        self.assertAlmostEqual(echoes["Stopper_chamfer"], 0)
+        import numpy as np
+
+        plain_echoes, plain_verts = self.render_case(28, "inner", 40, 3)
+        mid = 40 + echoes["Transition_h"] / 2
+        plain_mid = 40 + plain_echoes["Transition_h"] / 2
+        with_stop = float(np.nanmax(section_radii(verts, mid)[1]))
+        without = float(np.nanmax(section_radii(plain_verts, plain_mid)[1]))
+        self.assertAlmostEqual(with_stop - without, 3, delta=0.4)
+
+    def test_inside_stopper_narrows_the_bore(self):
+        echoes, verts = self.render_case(
+            28, "inner", 40, 3, stopper_side="inside", stopper_length=4, stopper_height=3
+        )
+        self.assertEqual(echoes["Stopper_side"], "inside")
+        import numpy as np
+
+        plain_echoes, plain_verts = self.render_case(28, "inner", 40, 3)
+        mid = 40 + echoes["Transition_h"] / 2
+        plain_mid = 40 + plain_echoes["Transition_h"] / 2
+        with_stop = float(np.nanmin(section_radii(verts, mid)[0]))
+        without = float(np.nanmin(section_radii(plain_verts, plain_mid)[0]))
+        self.assertAlmostEqual(without - with_stop, 3, delta=0.5)
+
+    def test_stopper_print_fit_tapers_the_edges(self):
+        echoes, verts = self.render_case(
+            28,
+            "inner",
+            40,
+            3,
+            optimize=True,
+            stopper_side="outside",
+            stopper_length=6,
+            stopper_height=3,
+        )
+        self.assertAlmostEqual(echoes["Stopper_chamfer"], 3)
+        import numpy as np
+
+        plain_echoes, plain_verts = self.render_case(28, "inner", 40, 3, optimize=True)
+        mid = 40 + echoes["Transition_h"] / 2
+        plain_mid = 40 + plain_echoes["Transition_h"] / 2
+        base = float(np.nanmax(section_radii(plain_verts, plain_mid)[1]))
+        # Full height at the middle.
+        self.assertAlmostEqual(float(np.nanmax(section_radii(verts, mid)[1])) - base, 3, delta=0.45)
+        # Near the start of the 45° taper the ridge has almost no height.
+        near_end = mid - 2.8
+        self.assertLess(float(np.nanmax(section_radii(verts, near_end)[1])) - base, 0.7)
+
+    def test_stopper_on_a_bend_stays_manifold(self):
+        echoes, verts = self.render_case(
+            28, "inner", 40, 3, angle=45, stopper_side="both", stopper_length=5, stopper_height=2.5
+        )
+        self.assertEqual(echoes["Stopper_side"], "both")
+        self.assertGreater(len(verts), 100)
+
+    def test_inside_stopper_that_closes_the_bore_is_rejected(self):
+        with self.assertRaises(ValueError):
+            generate.substitute(
+                generate.load_template(),
+                28,
+                "inner",
+                40,
+                3,
+                stopper_side="inside",
+                stopper_height=20,
+            )
 
 
 if __name__ == "__main__":

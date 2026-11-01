@@ -14,8 +14,11 @@ A small tool that writes an OpenSCAD model of a vacuum adapter. The top end can 
 | Wall thickness | 3 mm | Thickness of the tube walls |
 | Position | Centered | Centered, or slid until one outer wall lines up with the top |
 | Angle | 0° | Bend from −90° to 90°. Positive bends toward the flush edge |
+| Stopper | None | Ridge in the transition: inside, outside, or both |
+| Stopper length | 4 mm | How far the ridge runs along the adapter |
+| Stopper height | 3 mm | How far the ridge sticks out from the wall |
 
-CLEANTEC and Dyson keep their own shape. A short cone joins the top to the bottom tube. With the defaults the bottom tube is 28 mm inside and 34 mm outside.
+CLEANTEC and Dyson keep their own shape. A short cone joins the top to the bottom tube. With the defaults the bottom tube is 28 mm inside and 34 mm outside. On a bend the stopper’s outer shoulder runs farther than the inner one. Optimize for 3D printing also tapers the stopper’s top and bottom edges at 45° so the overhang needs no support.
 
 ## Use the page
 
@@ -39,10 +42,11 @@ A straight STL usually finishes within a minute. A bend takes longer. The cylind
 python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 --alignment edge --angle -45 -o adapter.scad
 python3 generate.py --top dyson --diameter 32 --measurement outer --optimize-print -o adapter.scad
 python3 generate.py --top tube --top-diameter 40 --top-measurement outer --diameter 28 --measurement inner -o adapter.scad
+python3 generate.py --stopper both --stopper-length 5 --stopper-height 3 --optimize-print -o adapter.scad
 python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 -o adapter.stl
 ```
 
-`--top` is `cleantec`, `dyson`, or `tube`. `--measurement` / `--top-measurement` are `inner` or `outer`. `--optimize-print` eases sized diameters by 0.2 mm: an inner 28 mm becomes 28.2 mm, an outer 28 mm becomes 27.8 mm, and a Dyson tip shrinks by 0.2 mm on the outside. `--alignment` is `center` or `edge`. `--angle` is degrees from -90 to 90. A `.stl` output renders the model with OpenSCAD. The command checks that the wall thickness still leaves a passage and that the angle is in range.
+`--top` is `cleantec`, `dyson`, or `tube`. `--measurement` / `--top-measurement` are `inner` or `outer`. `--stopper` is `none`, `inside`, `outside`, or `both`. `--optimize-print` eases sized diameters by 0.2 mm: an inner 28 mm becomes 28.2 mm, an outer 28 mm becomes 27.8 mm, and a Dyson tip shrinks by 0.2 mm on the outside; it also tapers stopper edges at 45°. `--alignment` is `center` or `edge`. `--angle` is degrees from -90 to 90. A `.stl` output renders the model with OpenSCAD. The command checks that the wall thickness still leaves a passage and that the angle is in range.
 
 After changing `scad/cleantec_adapter.scad` or `web/page.template.html`, rebuild the page:
 
