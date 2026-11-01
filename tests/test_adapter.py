@@ -609,15 +609,19 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(echoes["Top_style"], "dyson")
         self.assertAlmostEqual(echoes["Top_OD"], 34.1)
         self.assertAlmostEqual(echoes["Top_ID"], 28.5)
-        self.assertAlmostEqual(echoes["Total_length"], 40 + echoes["Transition_h"] + 46)
+        self.assertAlmostEqual(echoes["Total_length"], 40 + echoes["Transition_h"] + 32)
         import numpy as np
 
         tip_base = 40 + echoes["Transition_h"]
+        # Shaft below the groove is full outer diameter with a smooth bore.
         mins, maxs = section_radii(verts, tip_base + 5)
         self.assertAlmostEqual(float(np.nanmax(maxs)), 17.05, delta=0.2)
         self.assertAlmostEqual(float(np.nanmin(mins)), 14.25, delta=0.2)
-        groove_mins, groove_maxs = section_radii(verts, tip_base + 12)
+        # Groove sits near the free mouth (rim 5 mm, groove 4.45 mm).
+        groove_z = tip_base + 32 - 5 - 4.45 / 2
+        groove_mins, groove_maxs = section_radii(verts, groove_z)
         self.assertAlmostEqual(float(np.nanmax(groove_maxs)), 15.35, delta=0.25)
+        self.assertAlmostEqual(float(np.nanmin(groove_mins)), 14.25, delta=0.25)
 
     def test_dyson_print_fit_shrinks_the_outer_diameter(self):
         echoes, verts = self.render_case(28, "inner", 40, 3, top_style="dyson", optimize=True)
