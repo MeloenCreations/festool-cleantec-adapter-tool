@@ -186,6 +186,10 @@ class GenerateTests(unittest.TestCase):
         self.assertIn('id="stopper_length"', page)
         self.assertIn('id="stopper_height"', page)
         self.assertIn("45° to the horizontal", page)
+        # Bent section must reuse the tip outline (Dyson groove), not a plain stub.
+        self.assertIn("const tipOut = topOuter(0);", page)
+        self.assertIn("...leftTip.slice().reverse()", page)
+        self.assertIn("...rightTip.slice().reverse()", page)
 
     def test_print_fit_eases_the_chosen_diameter(self):
         source = generate.load_template()
@@ -632,6 +636,27 @@ class RenderTests(unittest.TestCase):
         tip_base = 40 + echoes["Transition_h"]
         mins, maxs = section_radii(verts, tip_base + 5)
         self.assertAlmostEqual(float(np.nanmax(maxs)), 16.95, delta=0.2)
+
+    def test_dyson_tip_survives_a_right_angle_bend(self):
+        echoes, verts = self.render_case(28, "inner", 40, 3, top_style="dyson", angle=90)
+        import numpy as np
+
+        points = verts.reshape(-1, 3)
+        bend_r = echoes["Bend_r"]
+        tube_r = echoes["Tube_OD"] / 2
+        tip_base = bend_r + tube_r
+        tip_mouth = tip_base + 32
+        self.assertAlmostEqual(float(points[:, 2].max()), tip_mouth, delta=0.15)
+        self.assertAlmostEqual(float(points[:, 2].min()), 0, delta=0.05)
+        # Shaft below the groove keeps the full tip OD.
+        mins, maxs = section_radii(verts, tip_base + 5)
+        self.assertAlmostEqual(float(np.nanmax(maxs)), 17.05, delta=0.25)
+        self.assertAlmostEqual(float(np.nanmin(mins)), 14.25, delta=0.25)
+        # Outer latch groove near the free mouth.
+        groove_z = tip_mouth - 5 - 4.45 / 2
+        groove_mins, groove_maxs = section_radii(verts, groove_z)
+        self.assertAlmostEqual(float(np.nanmax(groove_maxs)), 15.35, delta=0.3)
+        self.assertAlmostEqual(float(np.nanmin(groove_mins)), 14.25, delta=0.3)
 
     def test_top_tube_uses_inner_and_outer_like_the_bottom(self):
         echoes, verts = self.render_case(

@@ -1798,6 +1798,14 @@ echo(Print_allowance = allowance);
       const g = bendGeometry(spec);
       const steps = Math.max(12, Math.round(Math.abs(spec.angle)));
       function shift(point) { return [point[0], point[1] + g.lift]; }
+      // Same tip outline as the straight section (Dyson groove, CLEANTEC bore).
+      // Bent winding runs mouth → base on the left, base → mouth on the right.
+      const tipOut = topOuter(0);
+      const tipIn = topInner(0);
+      const leftTip = tipOut.filter((_, i) => i < tipOut.length / 2).map(shift);
+      const rightTip = tipOut.filter((_, i) => i >= tipOut.length / 2).map(shift);
+      const leftTipAir = tipIn.filter((_, i) => i < tipIn.length / 2).map(shift);
+      const rightTipAir = tipIn.filter((_, i) => i >= tipIn.length / 2).map(shift);
       if (g.blend > 0) {
         const left = [];
         const right = [];
@@ -1826,23 +1834,22 @@ echo(Print_allowance = allowance);
         ]);
         return {
           outer: [
-            shift([-sockR, spec.topH]),
+            ...leftTip.slice().reverse(),
             ...left,
             endLeft,
             endRight,
             ...right.slice().reverse(),
-            shift([sockR, spec.topH]),
+            ...rightTip.slice().reverse(),
           ],
           inner: [
             endLeftAir,
             ...leftAir.slice().reverse(),
-            shift([-boreR, Math.min(6, spec.topH)]),
-            shift([-mouthR, spec.topH]),
-            shift([mouthR, spec.topH]),
-            shift([boreR, Math.min(6, spec.topH)]),
+            ...leftTipAir,
+            ...rightTipAir,
             ...rightAir,
             endRightAir,
           ],
+          stopPolys: [],
         };
       }
       // Points to the inside of the elbow. At the top this is +X for a positive angle.
@@ -1892,24 +1899,18 @@ echo(Print_allowance = allowance);
       const leftEndAir = g.side < 0 ? endInAir : endOutAir;
       const rightEndAir = g.side < 0 ? endOutAir : endInAir;
       const outer = [
-        shift([-sockR, spec.topH]),
-        shift([-sockR, 0]),
+        ...leftTip.slice().reverse(),
         ...leftWall,
         leftEnd,
         rightEnd,
         ...rightWall.slice().reverse(),
-        shift([sockR, 0]),
-        shift([sockR, spec.topH]),
+        ...rightTip.slice().reverse(),
       ];
       const inner = [
         leftEndAir,
         ...leftAir.slice().reverse(),
-        shift([-exitR, 0]),
-        shift([-boreR, Math.min(6, spec.topH)]),
-        shift([-mouthR, spec.topH]),
-        shift([mouthR, spec.topH]),
-        shift([boreR, Math.min(6, spec.topH)]),
-        shift([exitR, 0]),
+        ...leftTipAir,
+        ...rightTipAir,
         ...rightAir,
         rightEndAir,
       ];
