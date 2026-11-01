@@ -42,6 +42,8 @@ def echo_numbers(output: str) -> dict[str, float]:
     found = {}
     for name, value in re.findall(r"ECHO: (\w+) = ([-\d.]+)", output):
         found[name] = float(value)
+    for name, value in re.findall(r'ECHO: (\w+) = "([^"]*)"', output):
+        found[name] = value
     return found
 
 
@@ -114,7 +116,8 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("diameter = 28;", updated)
         self.assertIn("wall_length = 40;", updated)
         self.assertIn("wall_thickness = 3;", updated)
-        self.assertTrue(updated.startswith("// Tube inner diameter 28 mm"))
+        self.assertIn('top_style = "cleantec";', updated)
+        self.assertTrue(updated.startswith("// Top CLEANTEC, bottom inner diameter 28 mm"))
 
     def test_outer_measurement_is_rejected_when_the_wall_fills_the_tube(self):
         with self.assertRaises(ValueError):
@@ -123,14 +126,16 @@ class GenerateTests(unittest.TestCase):
     def test_page_embeds_the_current_scad_source(self):
         page = generate.build_page()
         self.assertNotIn(generate.PLACEHOLDER, page)
-        self.assertIn("socket_od = 44.5;", page)
+        self.assertIn("cleantec_od = 44.5;", page)
         self.assertIn("module locking_lip", page)
+        self.assertIn('top_style = "cleantec";', page)
+        self.assertIn("dyson_od_nom = 34.1;", page)
         committed = generate.INDEX_PATH.read_text(encoding="utf-8")
         self.assertEqual(committed, page)
 
     def test_page_transition_matches_the_model(self):
         page = generate.build_page()
-        self.assertIn("Math.abs(tubeOd - SOCKET.od) * 0.7", page)
+        self.assertIn("Math.abs(tubeOd - topOd) * 0.7", page)
         self.assertIn("abs(tube_od - socket_od) * 0.7", page)
 
     def test_alignment_and_angle_are_written(self):
@@ -141,7 +146,7 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("angle = 45;", updated)
         self.assertTrue(
             updated.startswith(
-                "// Tube outer diameter 32 mm, length 50 mm, wall 2.5 mm, edge, angle 45 deg.\n"
+                "// Top CLEANTEC, bottom outer diameter 32 mm, length 50 mm, wall 2.5 mm, edge, angle 45 deg.\n"
             )
         )
 
@@ -171,6 +176,13 @@ class GenerateTests(unittest.TestCase):
             "An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller.",
             page,
         )
+        self.assertIn('name="top_style" value="dyson"', page)
+        self.assertIn('name="top_style" value="tube"', page)
+        self.assertIn('id="top_diameter"', page)
+        self.assertIn('name="stopper_side" value="both"', page)
+        self.assertIn('id="stopper_length"', page)
+        self.assertIn('id="stopper_height"', page)
+        self.assertIn("tapered 45", page)
 
     def test_print_fit_eases_the_chosen_diameter(self):
         source = generate.load_template()
@@ -179,7 +191,7 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("optimize_print = true;", inner)
         self.assertTrue(
             inner.startswith(
-                "// Tube inner diameter 28 mm, length 40 mm, wall 3 mm, "
+                "// Top CLEANTEC, bottom inner diameter 28 mm, length 40 mm, wall 3 mm, "
                 "center, angle 0 deg, print fit 0.2 mm.\n"
             )
         )
@@ -187,7 +199,7 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("optimize_print = true;", outer)
         self.assertTrue(
             outer.startswith(
-                "// Tube outer diameter 28 mm, length 40 mm, wall 3 mm, "
+                "// Top CLEANTEC, bottom outer diameter 28 mm, length 40 mm, wall 3 mm, "
                 "center, angle 0 deg, print fit 0.2 mm.\n"
             )
         )
@@ -197,10 +209,59 @@ class GenerateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             generate.substitute(source, 0.2, "outer", 40, 0.4, optimize=True)
 
+    def test_top_styles_are_written(self):
+        source = generate.load_template()
+        dyson = generate.substitute(source, 28, "inner", 40, 3, top_style="dyson")
+        self.assertIn('top_style = "dyson";', dyson)
+        self.assertTrue(dyson.startswith("// Top Dyson V6, bottom inner diameter 28 mm"))
+        tube = generate.substitute(
+            source,
+            28,
+            "inner",
+            40,
+            3,
+            top_style="tube",
+            top_diameter=36,
+            top_measurement="outer",
+            top_length=25,
+        )
+        self.assertIn('top_style = "tube";', tube)
+        self.assertIn("top_diameter = 36;", tube)
+        self.assertIn('top_measurement = "outer";', tube)
+        self.assertIn("top_wall_length = 25;", tube)
+        self.assertTrue(tube.startswith("// Top tube outer 36 mm, bottom inner diameter 28 mm"))
+        with self.assertRaises(ValueError):
+            generate.substitute(source, 28, "inner", 40, 3, top_style="magic")
+        with self.assertRaises(ValueError):
+            generate.substitute(
+                source,
+                28,
+                "inner",
+                40,
+                6,
+                top_style="tube",
+                top_diameter=10,
+                top_measurement="outer",
+            )
+
 
 class RenderTests(unittest.TestCase):
     def render_case(
-        self, diameter, measurement, length, thickness, alignment="center", angle=0, optimize=False
+        self,
+        diameter,
+        measurement,
+        length,
+        thickness,
+        alignment="center",
+        angle=0,
+        optimize=False,
+        top_style="cleantec",
+        top_diameter=28,
+        top_measurement="inner",
+        top_length=40,
+        stopper_side="none",
+        stopper_length=4,
+        stopper_height=3,
     ):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
@@ -215,6 +276,13 @@ class RenderTests(unittest.TestCase):
                 alignment,
                 angle,
                 optimize,
+                top_style,
+                top_diameter,
+                top_measurement,
+                top_length,
+                stopper_side,
+                stopper_length,
+                stopper_height,
             )
             text = text.replace("resolution = 0;", "resolution = 48;", 1)
             scad.write_text(text, encoding="utf-8")
@@ -223,8 +291,10 @@ class RenderTests(unittest.TestCase):
 
     def test_default_tube_and_socket(self):
         echoes, verts = self.render_case(28, "inner", 40, 3)
+        self.assertEqual(echoes["Top_style"], "cleantec")
         self.assertAlmostEqual(echoes["Tube_ID"], 28)
         self.assertAlmostEqual(echoes["Tube_OD"], 34)
+        self.assertAlmostEqual(echoes["Top_OD"], 44.5)
         self.assertAlmostEqual(echoes["Transition_h"], 8)
         self.assertAlmostEqual(echoes["Total_length"], 40 + 8 + 45.4)
 
@@ -304,9 +374,14 @@ class RenderTests(unittest.TestCase):
             scad = Path(tmp) / "bad.scad"
             source = generate.load_template()
             # Bypass the generator check so OpenSCAD's own assert is what fails.
-            source = source.replace("diameter = 28;", "diameter = 10;", 1)
-            source = source.replace('measurement = "inner";', 'measurement = "outer";', 1)
-            source = source.replace("wall_thickness = 3;", "wall_thickness = 6;", 1)
+            # Match the bottom-tube assignments (top_* variants come earlier in the file).
+            source = re.sub(r"^diameter = 28;", "diameter = 10;", source, count=1, flags=re.M)
+            source = re.sub(
+                r'^measurement = "inner";', 'measurement = "outer";', source, count=1, flags=re.M
+            )
+            source = re.sub(
+                r"^wall_thickness = 3;", "wall_thickness = 6;", source, count=1, flags=re.M
+            )
             scad.write_text(source, encoding="utf-8")
             env = os.environ.copy()
             env["QT_QPA_PLATFORM"] = "offscreen"
@@ -501,6 +576,158 @@ class RenderTests(unittest.TestCase):
         count = struct.unpack_from("<I", data, 80)[0]
         self.assertGreater(count, 100)
         self.assertEqual(len(data), 84 + count * 50)
+
+    def test_dyson_top_has_the_tool_tip_diameter(self):
+        echoes, verts = self.render_case(28, "inner", 40, 3, top_style="dyson")
+        self.assertEqual(echoes["Top_style"], "dyson")
+        self.assertAlmostEqual(echoes["Top_OD"], 34.1)
+        self.assertAlmostEqual(echoes["Top_ID"], 28.5)
+        self.assertAlmostEqual(echoes["Total_length"], 40 + echoes["Transition_h"] + 46)
+        import numpy as np
+
+        tip_base = 40 + echoes["Transition_h"]
+        mins, maxs = section_radii(verts, tip_base + 5)
+        self.assertAlmostEqual(float(np.nanmax(maxs)), 17.05, delta=0.2)
+        self.assertAlmostEqual(float(np.nanmin(mins)), 14.25, delta=0.2)
+        groove_mins, groove_maxs = section_radii(verts, tip_base + 12)
+        self.assertAlmostEqual(float(np.nanmax(groove_maxs)), 15.35, delta=0.25)
+
+    def test_dyson_print_fit_shrinks_the_outer_diameter(self):
+        echoes, verts = self.render_case(28, "inner", 40, 3, top_style="dyson", optimize=True)
+        self.assertAlmostEqual(echoes["Top_OD"], 33.9)
+        self.assertAlmostEqual(echoes["Tube_ID"], 28.2)
+        import numpy as np
+
+        tip_base = 40 + echoes["Transition_h"]
+        mins, maxs = section_radii(verts, tip_base + 5)
+        self.assertAlmostEqual(float(np.nanmax(maxs)), 16.95, delta=0.2)
+
+    def test_top_tube_uses_inner_and_outer_like_the_bottom(self):
+        echoes, verts = self.render_case(
+            28,
+            "inner",
+            30,
+            3,
+            top_style="tube",
+            top_diameter=40,
+            top_measurement="outer",
+            top_length=20,
+        )
+        self.assertEqual(echoes["Top_style"], "tube")
+        self.assertAlmostEqual(echoes["Top_OD"], 40)
+        self.assertAlmostEqual(echoes["Top_ID"], 34)
+        self.assertAlmostEqual(echoes["Total_length"], 30 + echoes["Transition_h"] + 20)
+        import numpy as np
+
+        top_z = 30 + echoes["Transition_h"] + 10
+        mins, maxs = section_radii(verts, top_z)
+        self.assertAlmostEqual(float(np.nanmax(maxs)), 20, delta=0.15)
+        self.assertAlmostEqual(float(np.nanmin(mins)), 17, delta=0.15)
+
+    def test_top_tube_print_fit_shifts_the_diameter(self):
+        echoes, _ = self.render_case(
+            28,
+            "inner",
+            30,
+            3,
+            optimize=True,
+            top_style="tube",
+            top_diameter=40,
+            top_measurement="outer",
+            top_length=20,
+        )
+        self.assertAlmostEqual(echoes["Top_OD"], 39.8)
+        self.assertAlmostEqual(echoes["Top_ID"], 33.8)
+        self.assertAlmostEqual(echoes["Tube_ID"], 28.2)
+
+        echoes_inner, _ = self.render_case(
+            32,
+            "outer",
+            30,
+            3,
+            optimize=True,
+            top_style="tube",
+            top_diameter=28,
+            top_measurement="inner",
+            top_length=20,
+        )
+        self.assertAlmostEqual(echoes_inner["Top_ID"], 28.2)
+        self.assertAlmostEqual(echoes_inner["Top_OD"], 34.2)
+        self.assertAlmostEqual(echoes_inner["Tube_OD"], 31.8)
+
+    def test_outside_stopper_adds_a_ridge(self):
+        echoes, verts = self.render_case(
+            28, "inner", 40, 3, stopper_side="outside", stopper_length=4, stopper_height=3
+        )
+        self.assertEqual(echoes["Stopper_side"], "outside")
+        self.assertAlmostEqual(echoes["Stopper_length"], 4)
+        self.assertAlmostEqual(echoes["Stopper_height"], 3)
+        self.assertAlmostEqual(echoes["Stopper_chamfer"], 0)
+        import numpy as np
+
+        plain_echoes, plain_verts = self.render_case(28, "inner", 40, 3)
+        mid = 40 + echoes["Transition_h"] / 2
+        plain_mid = 40 + plain_echoes["Transition_h"] / 2
+        with_stop = float(np.nanmax(section_radii(verts, mid)[1]))
+        without = float(np.nanmax(section_radii(plain_verts, plain_mid)[1]))
+        self.assertAlmostEqual(with_stop - without, 3, delta=0.4)
+
+    def test_inside_stopper_narrows_the_bore(self):
+        echoes, verts = self.render_case(
+            28, "inner", 40, 3, stopper_side="inside", stopper_length=4, stopper_height=3
+        )
+        self.assertEqual(echoes["Stopper_side"], "inside")
+        import numpy as np
+
+        plain_echoes, plain_verts = self.render_case(28, "inner", 40, 3)
+        mid = 40 + echoes["Transition_h"] / 2
+        plain_mid = 40 + plain_echoes["Transition_h"] / 2
+        with_stop = float(np.nanmin(section_radii(verts, mid)[0]))
+        without = float(np.nanmin(section_radii(plain_verts, plain_mid)[0]))
+        self.assertAlmostEqual(without - with_stop, 3, delta=0.5)
+
+    def test_stopper_print_fit_tapers_the_edges(self):
+        echoes, verts = self.render_case(
+            28,
+            "inner",
+            40,
+            3,
+            optimize=True,
+            stopper_side="outside",
+            stopper_length=6,
+            stopper_height=3,
+        )
+        self.assertAlmostEqual(echoes["Stopper_chamfer"], 3)
+        import numpy as np
+
+        plain_echoes, plain_verts = self.render_case(28, "inner", 40, 3, optimize=True)
+        mid = 40 + echoes["Transition_h"] / 2
+        plain_mid = 40 + plain_echoes["Transition_h"] / 2
+        base = float(np.nanmax(section_radii(plain_verts, plain_mid)[1]))
+        # Full height at the middle.
+        self.assertAlmostEqual(float(np.nanmax(section_radii(verts, mid)[1])) - base, 3, delta=0.45)
+        # Near the start of the 45° taper the ridge has almost no height.
+        near_end = mid - 2.8
+        self.assertLess(float(np.nanmax(section_radii(verts, near_end)[1])) - base, 0.7)
+
+    def test_stopper_on_a_bend_stays_manifold(self):
+        echoes, verts = self.render_case(
+            28, "inner", 40, 3, angle=45, stopper_side="both", stopper_length=5, stopper_height=2.5
+        )
+        self.assertEqual(echoes["Stopper_side"], "both")
+        self.assertGreater(len(verts), 100)
+
+    def test_inside_stopper_that_closes_the_bore_is_rejected(self):
+        with self.assertRaises(ValueError):
+            generate.substitute(
+                generate.load_template(),
+                28,
+                "inner",
+                40,
+                3,
+                stopper_side="inside",
+                stopper_height=20,
+            )
 
 
 if __name__ == "__main__":

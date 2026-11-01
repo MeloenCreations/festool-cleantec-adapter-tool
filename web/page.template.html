@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Festool CLEANTEC adapter</title>
+  <title>Vacuum hose adapter</title>
   <style>
     :root {
       --ink: #1c1915;
@@ -38,7 +38,7 @@
     }
     header p {
       margin: 0;
-      max-width: 40rem;
+      max-width: 42rem;
       color: var(--muted);
     }
     .layout {
@@ -104,6 +104,24 @@
     .choices { display: flex; flex-wrap: wrap; gap: 8px 16px; font-weight: 400; }
     .choices label { font-weight: 400; }
     .hint { display: block; margin-top: 4px; color: var(--muted); font-weight: 400; font-size: 14px; }
+    .group {
+      margin: 0 0 16px;
+      padding: 12px 12px 2px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #faf7f1;
+    }
+    .group > legend {
+      float: left;
+      width: 100%;
+      margin: 0 0 10px;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .group::after { content: ""; display: block; clear: both; }
+    .top-tube-only[hidden] { display: none !important; }
     .summary {
       margin: 4px 0 14px;
       padding-top: 8px;
@@ -162,43 +180,79 @@
 <body>
   <main>
     <header>
-      <h1>Festool CLEANTEC adapter</h1>
-      <p>One end is the female CLEANTEC socket a Festool suction hose twists into. The other end is a tube you size. It can sit in the middle or along one edge, and it can leave the socket at an angle.</p>
+      <h1>Vacuum hose adapter</h1>
+      <p>The top end can be a Festool CLEANTEC socket, a Dyson V6 tool connector, or a tube you size. The bottom end is a tube. It can sit in the middle or along one edge, and it can leave the top at an angle.</p>
     </header>
     <div class="layout">
       <form id="adapter-form">
-        <label class="field">Diameter
-          <span class="control">
-            <input id="diameter" type="number" name="diameter" min="1" max="200" step="0.1" required>
-            <span class="unit">mm</span>
-          </span>
-        </label>
-        <fieldset>
-          <legend>This diameter is the</legend>
-          <div class="choices">
-            <label><input type="radio" name="measurement" value="inner"> Inner diameter</label>
-            <label><input type="radio" name="measurement" value="outer"> Outer diameter</label>
+        <fieldset class="group">
+          <legend>Top end</legend>
+          <fieldset>
+            <legend>Connector</legend>
+            <div class="choices">
+              <label><input type="radio" name="top_style" value="cleantec"> CLEANTEC</label>
+              <label><input type="radio" name="top_style" value="dyson"> Dyson V6</label>
+              <label><input type="radio" name="top_style" value="tube"> Tube</label>
+            </div>
+            <span class="hint">CLEANTEC takes a Festool hose plug. Dyson V6 is the male tip tools click onto. Tube is a plain sized end.</span>
+          </fieldset>
+          <div id="top-tube-fields" class="top-tube-only">
+            <label class="field">Top diameter
+              <span class="control">
+                <input id="top_diameter" type="number" name="top_diameter" min="1" max="200" step="0.1">
+                <span class="unit">mm</span>
+              </span>
+            </label>
+            <fieldset>
+              <legend>This top diameter is the</legend>
+              <div class="choices">
+                <label><input type="radio" name="top_measurement" value="inner"> Inner diameter</label>
+                <label><input type="radio" name="top_measurement" value="outer"> Outer diameter</label>
+              </div>
+            </fieldset>
+            <label class="field">Top tube length
+              <span class="control">
+                <input id="top_length" type="number" name="top_length" min="1" max="500" step="0.5">
+                <span class="unit">mm</span>
+              </span>
+            </label>
           </div>
+        </fieldset>
+        <fieldset class="group">
+          <legend>Bottom tube</legend>
+          <label class="field">Diameter
+            <span class="control">
+              <input id="diameter" type="number" name="diameter" min="1" max="200" step="0.1" required>
+              <span class="unit">mm</span>
+            </span>
+          </label>
+          <fieldset>
+            <legend>This diameter is the</legend>
+            <div class="choices">
+              <label><input type="radio" name="measurement" value="inner"> Inner diameter</label>
+              <label><input type="radio" name="measurement" value="outer"> Outer diameter</label>
+            </div>
+          </fieldset>
+          <label class="field">Tube length
+            <span class="control">
+              <input id="length" type="number" name="length" min="1" max="500" step="0.5" required>
+              <span class="unit">mm</span>
+            </span>
+            <span class="hint">Length of the straight bottom tube. The top end and any bend are added beyond this.</span>
+          </label>
         </fieldset>
         <div class="field">
           <span class="choices">
             <label><input type="checkbox" id="optimize" name="optimize"> Optimize for 3D printing</label>
           </span>
-          <span class="hint">Adds 0.2 mm of clearance. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller.</span>
+          <span class="hint">Adds 0.2 mm of clearance on every sized diameter. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller. The Dyson outer diameter also shrinks by 0.2 mm. Stopper top and bottom edges are tapered 45° so they need no support.</span>
         </div>
-        <label class="field">Tube length
-          <span class="control">
-            <input id="length" type="number" name="length" min="1" max="500" step="0.5" required>
-            <span class="unit">mm</span>
-          </span>
-          <span class="hint">Length of the straight tube. The socket and any bend are added beyond this.</span>
-        </label>
         <label class="field">Wall thickness
           <span class="control">
             <input id="thickness" type="number" name="thickness" min="0.4" max="20" step="0.1" required>
             <span class="unit">mm</span>
           </span>
-          <span class="hint">Thickness of the tube wall. The CLEANTEC socket keeps its own shape.</span>
+          <span class="hint">Thickness of the tube walls and the transition. CLEANTEC and Dyson keep their own shape.</span>
         </label>
         <fieldset>
           <legend>Tube position</legend>
@@ -206,7 +260,7 @@
             <label><input type="radio" name="alignment" value="center"> Centered</label>
             <label><input type="radio" name="alignment" value="edge"> Along one edge</label>
           </div>
-          <span class="hint">Along one edge slides the tube until its outer wall lines up with one side of the socket.</span>
+          <span class="hint">Along one edge slides the bottom tube until its outer wall lines up with one side of the top.</span>
         </fieldset>
         <label class="field">Angle
           <span class="control">
@@ -216,6 +270,35 @@
           <input id="angle-range" type="range" min="-90" max="90" step="1" aria-label="Angle in degrees">
           <span class="hint">0° is straight. 90° bends toward the flush edge. −90° bends the other way.</span>
         </label>
+        <fieldset class="group">
+          <legend>Stopper</legend>
+          <fieldset>
+            <legend>Placement</legend>
+            <div class="choices">
+              <label><input type="radio" name="stopper_side" value="none"> None</label>
+              <label><input type="radio" name="stopper_side" value="inside"> Inside</label>
+              <label><input type="radio" name="stopper_side" value="outside"> Outside</label>
+              <label><input type="radio" name="stopper_side" value="both"> Both</label>
+            </div>
+            <span class="hint">A ridge in the transition between the top and bottom. On a bend the outer shoulder runs farther than the inner one.</span>
+          </fieldset>
+          <div id="stopper-fields" class="top-tube-only">
+            <label class="field">Length
+              <span class="control">
+                <input id="stopper_length" type="number" name="stopper_length" min="0.5" max="40" step="0.1">
+                <span class="unit">mm</span>
+              </span>
+              <span class="hint">How far the ridge runs along the adapter.</span>
+            </label>
+            <label class="field">Height
+              <span class="control">
+                <input id="stopper_height" type="number" name="stopper_height" min="0.5" max="40" step="0.1">
+                <span class="unit">mm</span>
+              </span>
+              <span class="hint">How far the ridge sticks out from the wall.</span>
+            </label>
+          </div>
+        </fieldset>
         <p class="summary" id="summary"></p>
         <div class="actions">
           <button type="submit" id="download">Download SCAD file</button>
@@ -232,16 +315,19 @@
       </div>
     </div>
     <section class="notes">
-      <h2>How it locks</h2>
-      <p>Push the male CLEANTEC plug on the hose into the socket and twist it until the three lugs sit behind the shelves. Pulling straight out will not release it. Twist back to the entry slots to remove it.</p>
+      <h2>How the top ends work</h2>
+      <p>CLEANTEC: push the male plug on a Festool hose into the socket and twist until the three lugs sit behind the shelves. Twist back to the entry slots to remove it.</p>
+      <p>Dyson V6: slide a Dyson tool onto the male tip until the latch clicks into the groove. The four flats let the tool sit in any 90° orientation.</p>
+      <p>Tube: a plain cylinder sized by inner or outer diameter, the same way as the bottom end.</p>
       <h2>Printing</h2>
       <ul>
         <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
         <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
-        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on the diameter you chose. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller.</li>
-        <li>Print with the tube on the bed and the socket mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
+        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on every sized diameter, including a top tube and the Dyson outer diameter. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller. It also tapers the stopper’s top and bottom edges at 45° so the overhang needs no support.</li>
+        <li>A stopper is a ridge in the transition: inside, outside, or both. Set its length along the axis and its height out from the wall. On a bend the outer shoulder runs farther than the inner one.</li>
+        <li>Print with the bottom tube on the bed and the top mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
         <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
-        <li>If the plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
+        <li>If a CLEANTEC plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
       </ul>
     </section>
   </main>
@@ -261,12 +347,22 @@ ___SCAD_SOURCE___
       return Number(paramLine(name));
     }
 
-    const SOCKET = {
-      od: constant("socket_od"),
-      h: constant("socket_h"),
-      exitD: constant("socket_exit_d"),
+    const CLEANTEC = {
+      od: constant("cleantec_od"),
+      h: constant("cleantec_h"),
+      exitD: constant("cleantec_exit_d"),
       boreD: constant("bore_d"),
       mouthD: constant("mouth_d"),
+    };
+    const DYSON = {
+      od: constant("dyson_od_nom"),
+      id: constant("dyson_id_nom"),
+      h: constant("dyson_h"),
+      tipH: constant("dyson_tip_h"),
+      grooveH: constant("dyson_groove_h"),
+      grooveTaperH: constant("dyson_groove_taper_h"),
+      grooveD: constant("dyson_groove_d"),
+      clipWall: constant("dyson_clip_wall"),
     };
 
     function fmt(value) {
@@ -290,10 +386,28 @@ ___SCAD_SOURCE___
       const length = readNumber("length");
       const thickness = readNumber("thickness");
       const angle = readNumber("angle");
+      const topDiameter = readNumber("top_diameter");
+      const topLength = readNumber("top_length");
+      const stopperLength = readNumber("stopper_length");
+      const stopperHeight = readNumber("stopper_height");
       const measurement = document.querySelector('input[name="measurement"]:checked')?.value;
+      const topMeasurement = document.querySelector('input[name="top_measurement"]:checked')?.value;
+      const topStyle = document.querySelector('input[name="top_style"]:checked')?.value;
       const alignment = document.querySelector('input[name="alignment"]:checked')?.value;
+      const stopperSide = document.querySelector('input[name="stopper_side"]:checked')?.value;
       const optimize = document.getElementById("optimize").checked;
-      return { diameter, length, thickness, measurement, alignment, angle, optimize };
+      return {
+        diameter, length, thickness, measurement, alignment, angle, optimize,
+        topStyle, topDiameter, topMeasurement, topLength,
+        stopperSide, stopperLength, stopperHeight,
+      };
+    }
+
+    function syncTopFields() {
+      const topStyle = document.querySelector('input[name="top_style"]:checked')?.value;
+      document.getElementById("top-tube-fields").hidden = topStyle !== "tube";
+      const stopperSide = document.querySelector('input[name="stopper_side"]:checked')?.value;
+      document.getElementById("stopper-fields").hidden = stopperSide === "none" || !stopperSide;
     }
 
     function scadCos(degrees) {
@@ -305,7 +419,7 @@ ___SCAD_SOURCE___
     }
 
     function edgeOffsetOf(spec) {
-      return spec.alignment === "edge" ? (SOCKET.od - spec.tubeOd) / 2 : 0;
+      return spec.alignment === "edge" ? (spec.topOd - spec.tubeOd) / 2 : 0;
     }
 
     function smooth(s) { return s * s * (3 - 2 * s); }
@@ -318,7 +432,7 @@ ___SCAD_SOURCE___
       const angle = spec.angle;
       const side = angle < 0 ? -1 : 1;
       const mag = Math.abs(angle);
-      const bendR = Math.max(SOCKET.od, spec.tubeOd) * 0.8;
+      const bendR = Math.max(spec.topOd, spec.tubeOd) * 0.8;
       const shiftLen = Math.sqrt(8 * Math.abs(off) * spec.tubeOd);
       const arcLen = bendR * mag * Math.PI / 180;
       const blend = spec.alignment === "edge"
@@ -373,12 +487,15 @@ ___SCAD_SOURCE___
     }
 
     function partSize(spec) {
-      const sockR = SOCKET.od / 2;
+      const stopExtra = (spec.stopperSide === "outside" || spec.stopperSide === "both")
+        ? (spec.stopperHeight || 0)
+        : 0;
+      const sockR = spec.topOd / 2 + (spec.topStyle === "dyson" ? DYSON.clipWall : 0);
       const tubeR = spec.tubeOd / 2;
       if (spec.angle === 0) {
         const off = edgeOffsetOf(spec);
-        const minX = Math.min(-sockR, off - tubeR);
-        const maxX = Math.max(sockR, off + tubeR);
+        const minX = Math.min(-sockR - stopExtra, off - tubeR - stopExtra);
+        const maxX = Math.max(sockR + stopExtra, off + tubeR + stopExtra);
         return { width: maxX - minX, height: spec.total };
       }
       const g = bendGeometry(spec);
@@ -394,56 +511,117 @@ ___SCAD_SOURCE___
       }
       if (g.blend > 0) {
         for (let i = 0; i <= g.steps; i++) {
-          const outerR = sockR + (tubeR - sockR) * smooth(i / g.steps);
+          const outerR = sockR + (tubeR - sockR) * smooth(i / g.steps) + stopExtra;
           add(g.centers[i], g.tangents[i], outerR);
         }
       } else {
         const steps = Math.max(24, Math.round(Math.abs(spec.angle)));
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
-          add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t);
+          add(g.pos(t), g.tangent(t), sockR + (tubeR - sockR) * t + stopExtra);
         }
       }
       add(g.tubeEnd, g.dir, tubeR);
-      box.minX = Math.min(box.minX, -sockR);
-      box.maxX = Math.max(box.maxX, sockR);
-      // The model sits on the tube-end rim, and the socket mouth is the top.
-      return { width: box.maxX - box.minX, height: g.lift + SOCKET.h };
+      box.minX = Math.min(box.minX, -sockR - stopExtra);
+      box.maxX = Math.max(box.maxX, sockR + stopExtra);
+      // The model sits on the tube-end rim, and the top mouth is the top.
+      return { width: box.maxX - box.minX, height: g.lift + spec.topH };
     }
 
     function describe(input) {
-      const { diameter, length, thickness, measurement, alignment, angle, optimize } = input;
-      if (!measurement) return { error: "Choose inner or outer diameter." };
+      const {
+        diameter, length, thickness, measurement, alignment, angle, optimize,
+        topStyle, topDiameter, topMeasurement, topLength,
+        stopperSide, stopperLength, stopperHeight,
+      } = input;
+      if (!topStyle) return { error: "Choose a top connector." };
+      if (!measurement) return { error: "Choose inner or outer diameter for the bottom tube." };
+      if (topStyle === "tube" && !topMeasurement) {
+        return { error: "Choose inner or outer diameter for the top tube." };
+      }
       if (alignment !== "center" && alignment !== "edge") {
         return { error: "Choose centered or along one edge." };
       }
-      if (![diameter, length, thickness, angle].every(Number.isFinite)) {
-        return { error: "Enter a number for diameter, tube length, wall thickness, and angle." };
+      if (!stopperSide) return { error: "Choose a stopper placement." };
+      const required = [diameter, length, thickness, angle];
+      if (topStyle === "tube") required.push(topDiameter, topLength);
+      if (stopperSide !== "none") required.push(stopperLength, stopperHeight);
+      if (!required.every(Number.isFinite)) {
+        return { error: "Enter a number for every size field." };
       }
       if (diameter <= 0 || length <= 0 || thickness <= 0) {
         return { error: "Diameter, tube length, and wall thickness must be positive." };
       }
+      if (topStyle === "tube" && (topDiameter <= 0 || topLength <= 0)) {
+        return { error: "Top diameter and top tube length must be positive." };
+      }
       if (angle < -90 || angle > 90) {
         return { error: "Angle must be from -90 to 90 degrees." };
+      }
+      if (stopperSide !== "none" && (stopperLength <= 0 || stopperHeight <= 0)) {
+        return { error: "Stopper length and height must be positive." };
       }
       const allowance = optimize ? 0.2 : 0;
       const sized = measurement === "outer" ? diameter - allowance : diameter + allowance;
       if (sized <= 0) {
-        return { error: "The print allowance removes the whole diameter. Increase it or turn optimization off." };
+        return { error: "The print allowance removes the whole bottom diameter. Increase it or turn optimization off." };
       }
       const tubeId = measurement === "outer" ? sized - 2 * thickness : sized;
       const tubeOd = measurement === "outer" ? sized : sized + 2 * thickness;
       if (tubeId <= 0.5) {
         return { error: "Wall thickness leaves no airflow. Reduce it or increase the diameter." };
       }
+
+      let topOd, topId, topH, topBoreD, topMouthD;
+      if (topStyle === "cleantec") {
+        topOd = CLEANTEC.od;
+        topId = CLEANTEC.exitD;
+        topH = CLEANTEC.h;
+        topBoreD = CLEANTEC.boreD;
+        topMouthD = CLEANTEC.mouthD;
+      } else if (topStyle === "dyson") {
+        topOd = DYSON.od - allowance;
+        topId = DYSON.id;
+        topH = DYSON.h;
+        topBoreD = DYSON.id;
+        topMouthD = DYSON.id;
+      } else {
+        const topSized = topMeasurement === "outer" ? topDiameter - allowance : topDiameter + allowance;
+        if (topSized <= 0) {
+          return { error: "The print allowance removes the whole top diameter. Increase it or turn optimization off." };
+        }
+        topId = topMeasurement === "outer" ? topSized - 2 * thickness : topSized;
+        topOd = topMeasurement === "outer" ? topSized : topSized + 2 * thickness;
+        if (topId <= 0.5) {
+          return { error: "Wall thickness leaves no airflow in the top tube. Reduce it or increase the top diameter." };
+        }
+        topH = topLength;
+        topBoreD = topId;
+        topMouthD = topId;
+      }
+
+      if (stopperSide === "inside" || stopperSide === "both") {
+        const minBore = Math.min(tubeId, topId) / 2;
+        if (minBore - stopperHeight <= 0.5) {
+          return { error: "Inside stopper closes the airflow. Reduce stopper height or increase the diameter." };
+        }
+      }
+
       const transition = Math.max(
         8,
-        Math.abs(tubeOd - SOCKET.od) * 0.7,
-        Math.abs(tubeId - SOCKET.exitD) * 0.7
+        Math.abs(tubeOd - topOd) * 0.7,
+        Math.abs(tubeId - topId) * 0.7,
+        stopperSide !== "none" ? stopperLength : 0
       );
-      const total = length + transition + SOCKET.h;
+      const total = length + transition + topH;
+      const stopperChamfer = (optimize && stopperSide !== "none")
+        ? Math.min(stopperHeight, stopperLength / 2)
+        : 0;
       const spec = {
-        diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, optimize, transition, total,
+        diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, optimize,
+        transition, total, topStyle, topDiameter, topMeasurement, topLength,
+        topOd, topId, topH, topBoreD, topMouthD,
+        stopperSide, stopperLength, stopperHeight, stopperChamfer,
       };
       const size = partSize(spec);
       spec.width = size.width;
@@ -451,56 +629,113 @@ ___SCAD_SOURCE___
       return spec;
     }
 
+    function topLabel(spec) {
+      if (spec.topStyle === "cleantec") return "CLEANTEC socket";
+      if (spec.topStyle === "dyson") return "Dyson V6 connector";
+      return "top tube";
+    }
+
     function summaryText(spec) {
-      const face = spec.measurement === "outer" ? "Outer tube" : "Inner tube";
+      const face = spec.measurement === "outer" ? "Outer bottom" : "Inner bottom";
       const place = spec.alignment === "edge" ? "along one edge" : "centered";
+      let topBit;
+      if (spec.topStyle === "tube") {
+        topBit = "Top tube " + display(spec.topId) + " / " + display(spec.topOd) + " mm";
+      } else if (spec.topStyle === "dyson") {
+        topBit = "Dyson V6 " + display(spec.topOd) + " mm across";
+      } else {
+        topBit = "CLEANTEC " + display(spec.topOd) + " mm across";
+      }
       let tail;
       if (spec.angle !== 0) {
-        tail = "bent " + fmt(spec.angle) + "°. The CLEANTEC socket is " +
-          display(SOCKET.od) + " mm across. Overall " + display(spec.height) +
+        tail = "bent " + fmt(spec.angle) + "°. " + topBit +
+          ". Overall " + display(spec.height) +
           " mm tall and " + display(spec.width) + " mm wide. The elbow may need support.";
       } else {
-        tail = "straight. The CLEANTEC socket is " +
-          display(SOCKET.od) + " mm across and " + display(SOCKET.h) +
-          " mm long, with a transition of " + display(spec.transition) +
+        tail = "straight. " + topBit +
+          (spec.topStyle === "cleantec"
+            ? " and " + display(spec.topH) + " mm long"
+            : "") +
+          ", with a transition of " + display(spec.transition) +
           " mm. Overall length " + display(spec.total) + " mm.";
       }
       let fit = "";
       if (spec.optimize) {
-        fit = spec.measurement === "outer"
-          ? " The outer diameter is printed 0.2 mm smaller than " + display(spec.diameter) + " mm."
-          : " The inner diameter is printed 0.2 mm larger than " + display(spec.diameter) + " mm.";
+        const bits = [];
+        bits.push(
+          spec.measurement === "outer"
+            ? "bottom outer printed 0.2 mm smaller than " + display(spec.diameter) + " mm"
+            : "bottom inner printed 0.2 mm larger than " + display(spec.diameter) + " mm"
+        );
+        if (spec.topStyle === "tube") {
+          bits.push(
+            spec.topMeasurement === "outer"
+              ? "top outer printed 0.2 mm smaller than " + display(spec.topDiameter) + " mm"
+              : "top inner printed 0.2 mm larger than " + display(spec.topDiameter) + " mm"
+          );
+        } else if (spec.topStyle === "dyson") {
+          bits.push("Dyson outer printed 0.2 mm smaller");
+        }
+        if (spec.stopperSide !== "none") {
+          bits.push("stopper edges tapered 45°");
+        }
+        fit = " Print fit: " + bits.join("; ") + ".";
       }
+      const stop = spec.stopperSide !== "none"
+        ? " Stopper " + spec.stopperSide + ", " + display(spec.stopperLength) +
+          " mm long and " + display(spec.stopperHeight) + " mm high."
+        : "";
       return (
         face + ", " + display(spec.tubeId) + " mm inside and " + display(spec.tubeOd) +
-        " mm outside, " + display(spec.length) + " mm long, " + place + ", " + tail + fit
+        " mm outside, " + display(spec.length) + " mm long, " + place + ", " + tail + stop + fit
       );
     }
 
     function withParams(spec) {
       let source = SOURCE.trim() + "\n";
       source = source
+        .replace(/^top_style = "[^"]+";/m, 'top_style = "' + spec.topStyle + '";')
+        .replace(/^top_diameter = [^;]+;/m, "top_diameter = " + fmt(spec.topDiameter || 28) + ";")
+        .replace(/^top_measurement = "[^"]+";/m, 'top_measurement = "' + (spec.topMeasurement || "inner") + '";')
+        .replace(/^top_wall_length = [^;]+;/m, "top_wall_length = " + fmt(spec.topLength || 40) + ";")
         .replace(/^diameter = [^;]+;/m, "diameter = " + fmt(spec.diameter) + ";")
         .replace(/^measurement = "[^"]+";/m, 'measurement = "' + spec.measurement + '";')
         .replace(/^optimize_print = [^;]+;/m, "optimize_print = " + (spec.optimize ? "true" : "false") + ";")
         .replace(/^wall_length = [^;]+;/m, "wall_length = " + fmt(spec.length) + ";")
         .replace(/^wall_thickness = [^;]+;/m, "wall_thickness = " + fmt(spec.thickness) + ";")
         .replace(/^alignment = "[^"]+";/m, 'alignment = "' + spec.alignment + '";')
-        .replace(/^angle = [^;]+;/m, "angle = " + fmt(spec.angle) + ";");
+        .replace(/^angle = [^;]+;/m, "angle = " + fmt(spec.angle) + ";")
+        .replace(/^stopper_side = "[^"]+";/m, 'stopper_side = "' + spec.stopperSide + '";')
+        .replace(/^stopper_length = [^;]+;/m, "stopper_length = " + fmt(spec.stopperLength || 4) + ";")
+        .replace(/^stopper_height = [^;]+;/m, "stopper_height = " + fmt(spec.stopperHeight || 3) + ";");
+      const topNote = spec.topStyle === "tube"
+        ? "tube " + spec.topMeasurement + " " + fmt(spec.topDiameter) + " mm"
+        : (spec.topStyle === "dyson" ? "Dyson V6" : "CLEANTEC");
+      const stop = spec.stopperSide !== "none"
+        ? ", stopper " + spec.stopperSide + " " + fmt(spec.stopperLength) +
+          "x" + fmt(spec.stopperHeight) + " mm"
+        : "";
       const note =
-        "// Tube " + spec.measurement + " diameter " + fmt(spec.diameter) +
+        "// Top " + topNote + ", bottom " + spec.measurement + " diameter " + fmt(spec.diameter) +
         " mm, length " + fmt(spec.length) + " mm, wall " + fmt(spec.thickness) +
-        " mm, " + spec.alignment + ", angle " + fmt(spec.angle) + " deg" +
+        " mm, " + spec.alignment + ", angle " + fmt(spec.angle) + " deg" + stop +
         (spec.optimize ? ", print fit 0.2 mm" : "") + ".\n";
       return note + source;
     }
 
     function filename(spec) {
       const side = spec.measurement === "outer" ? "od" : "id";
-      let name = "cleantec-adapter-" + side + fmt(spec.diameter) +
+      let name = "adapter-" + spec.topStyle + "-" + side + fmt(spec.diameter) +
         "-len" + fmt(spec.length) + "-wall" + fmt(spec.thickness);
+      if (spec.topStyle === "tube") {
+        const topSide = spec.topMeasurement === "outer" ? "od" : "id";
+        name += "-top" + topSide + fmt(spec.topDiameter);
+      }
       if (spec.alignment === "edge") name += "-edge";
       if (spec.angle !== 0) name += "-a" + fmt(spec.angle);
+      if (spec.stopperSide !== "none") {
+        name += "-stop" + spec.stopperSide[0] + fmt(spec.stopperLength) + "x" + fmt(spec.stopperHeight);
+      }
       if (spec.optimize) name += "-fit";
       return name;
     }
@@ -517,42 +752,166 @@ ___SCAD_SOURCE___
     }
 
     function sectionProfile(spec) {
-      const sockR = SOCKET.od / 2;
+      const sockR = spec.topOd / 2;
       const tubeR = spec.tubeOd / 2;
       const tubeRi = spec.tubeId / 2;
-      const exitR = SOCKET.exitD / 2;
-      const boreR = SOCKET.boreD / 2;
-      const mouthR = SOCKET.mouthD / 2;
+      const exitR = spec.topId / 2;
+      const boreR = spec.topBoreD / 2;
+      const mouthR = spec.topMouthD / 2;
+      const clipR = spec.topStyle === "dyson" ? sockR + DYSON.clipWall : sockR;
+
+      function topInner(zBase) {
+        if (spec.topStyle === "cleantec") {
+          return [
+            [-exitR, zBase],
+            [-boreR, zBase + 6],
+            [-boreR, zBase + 40],
+            [-mouthR, zBase + spec.topH],
+            [mouthR, zBase + spec.topH],
+            [boreR, zBase + 40],
+            [boreR, zBase + 6],
+            [exitR, zBase],
+          ];
+        }
+        if (spec.topStyle === "dyson") {
+          const g0 = zBase + DYSON.tipH;
+          const g1 = g0 + DYSON.grooveH;
+          const g2 = g1 + DYSON.grooveTaperH;
+          const grooveR = DYSON.grooveD / 2;
+          return [
+            [-exitR, zBase],
+            [-exitR, g0],
+            [-grooveR, g0],
+            [-grooveR, g1],
+            [-sockR, g2],
+            [-exitR, g2],
+            [-exitR, zBase + spec.topH],
+            [exitR, zBase + spec.topH],
+            [exitR, g2],
+            [sockR, g2],
+            [grooveR, g1],
+            [grooveR, g0],
+            [exitR, g0],
+            [exitR, zBase],
+          ];
+        }
+        return [
+          [-exitR, zBase],
+          [-exitR, zBase + spec.topH],
+          [exitR, zBase + spec.topH],
+          [exitR, zBase],
+        ];
+      }
+
+      function topOuter(zBase) {
+        if (spec.topStyle === "dyson") {
+          const clipZ = zBase + 36.5;
+          return [
+            [-sockR, zBase],
+            [-sockR, clipZ],
+            [-clipR, clipZ],
+            [-clipR, clipZ + DYSON.clipWall * 3.8],
+            [-sockR, clipZ + DYSON.clipWall * 3.8],
+            [-sockR, zBase + spec.topH],
+            [sockR, zBase + spec.topH],
+            [sockR, clipZ + DYSON.clipWall * 3.8],
+            [clipR, clipZ + DYSON.clipWall * 3.8],
+            [clipR, clipZ],
+            [sockR, clipZ],
+            [sockR, zBase],
+          ];
+        }
+        return [
+          [-sockR, zBase],
+          [-sockR, zBase + spec.topH],
+          [sockR, zBase + spec.topH],
+          [sockR, zBase],
+        ];
+      }
+
+      function stopperExtra(s) {
+        if (!spec.stopperSide || spec.stopperSide === "none") return 0;
+        const H = spec.stopperHeight;
+        const L = spec.stopperLength;
+        const chamfer = spec.stopperChamfer || 0;
+        if (chamfer <= 0) return H;
+        const rise = Math.min(s, L - s, chamfer) * (H / chamfer);
+        return Math.max(0, Math.min(H, rise));
+      }
+
       if (spec.angle === 0) {
         const off = edgeOffsetOf(spec);
         const z1 = spec.length;
         const z2 = spec.length + spec.transition;
-        const z3 = spec.total;
-        const outer = [
+        const topOut = topOuter(z2);
+        const leftTop = topOut.filter((_, i) => i < topOut.length / 2);
+        const rightTop = topOut.filter((_, i) => i >= topOut.length / 2);
+        const outer2 = [
           [off - tubeR, 0],
           [off - tubeR, z1],
           [-sockR, z2],
-          [-sockR, z3],
-          [sockR, z3],
+          ...leftTop,
+          ...rightTop,
           [sockR, z2],
           [off + tubeR, z1],
           [off + tubeR, 0],
         ];
+        const innerTop = topInner(z2);
+        const leftAir = innerTop.filter((_, i) => i < innerTop.length / 2);
+        const rightAir = innerTop.filter((_, i) => i >= innerTop.length / 2);
         const inner = [
           [off - tubeRi, 0],
           [off - tubeRi, z1],
-          [-exitR, z2],
-          [-boreR, z2 + 6],
-          [-boreR, z2 + 40],
-          [-mouthR, z3],
-          [mouthR, z3],
-          [boreR, z2 + 40],
-          [boreR, z2 + 6],
-          [exitR, z2],
+          ...leftAir,
+          ...rightAir,
           [off + tubeRi, z1],
           [off + tubeRi, 0],
         ];
-        return { outer, inner };
+        // Overlay stopper ridges on the transition in the section view.
+        const stopPolys = [];
+        if (spec.stopperSide && spec.stopperSide !== "none") {
+          const z0 = z2 - spec.transition / 2 - spec.stopperLength / 2;
+          const steps = Math.max(6, Math.round(spec.stopperLength));
+          const leftOut = [];
+          const rightOut = [];
+          const leftOutWall = [];
+          const rightOutWall = [];
+          const leftIn = [];
+          const rightIn = [];
+          const leftInWall = [];
+          const rightInWall = [];
+          for (let i = 0; i <= steps; i++) {
+            const s = i * spec.stopperLength / steps;
+            const t = Math.max(0, Math.min(1, (z0 + s - z1) / spec.transition));
+            const ease = t * t * (3 - 2 * t);
+            const ox = off * (1 - ease);
+            const outer = tubeR + (sockR - tubeR) * t;
+            const inn = tubeRi + (exitR - tubeRi) * t;
+            const extra = stopperExtra(s);
+            const z = z0 + s;
+            if (spec.stopperSide === "outside" || spec.stopperSide === "both") {
+              leftOut.push([ox - outer - extra, z]);
+              rightOut.push([ox + outer + extra, z]);
+              leftOutWall.push([ox - outer, z]);
+              rightOutWall.push([ox + outer, z]);
+            }
+            if (spec.stopperSide === "inside" || spec.stopperSide === "both") {
+              leftIn.push([ox - (inn - extra), z]);
+              rightIn.push([ox + (inn - extra), z]);
+              leftInWall.push([ox - inn, z]);
+              rightInWall.push([ox + inn, z]);
+            }
+          }
+          if (leftOut.length) {
+            stopPolys.push({ outer: [...leftOutWall, ...leftOut.slice().reverse()] });
+            stopPolys.push({ outer: [...rightOutWall, ...rightOut.slice().reverse()] });
+          }
+          if (leftIn.length) {
+            stopPolys.push({ outer: [...leftInWall, ...leftIn.slice().reverse()] });
+            stopPolys.push({ outer: [...rightInWall, ...rightIn.slice().reverse()] });
+          }
+        }
+        return { outer: outer2, inner, stopPolys };
       }
 
       const g = bendGeometry(spec);
@@ -586,28 +945,26 @@ ___SCAD_SOURCE___
         ]);
         return {
           outer: [
-            shift([-sockR, SOCKET.h]),
+            shift([-sockR, spec.topH]),
             ...left,
             endLeft,
             endRight,
             ...right.slice().reverse(),
-            shift([sockR, SOCKET.h]),
+            shift([sockR, spec.topH]),
           ],
           inner: [
             endLeftAir,
             ...leftAir.slice().reverse(),
-            shift([-boreR, 6]),
-            shift([-boreR, 40]),
-            shift([-mouthR, SOCKET.h]),
-            shift([mouthR, SOCKET.h]),
-            shift([boreR, 40]),
-            shift([boreR, 6]),
+            shift([-boreR, Math.min(6, spec.topH)]),
+            shift([-mouthR, spec.topH]),
+            shift([mouthR, spec.topH]),
+            shift([boreR, Math.min(6, spec.topH)]),
             ...rightAir,
             endRightAir,
           ],
         };
       }
-      // Points to the inside of the elbow. At the socket this is +X for a positive angle.
+      // Points to the inside of the elbow. At the top this is +X for a positive angle.
       function inward(t) {
         const [tx, tz] = g.tangent(t);
         return [-tz * g.side, tx * g.side];
@@ -654,37 +1011,37 @@ ___SCAD_SOURCE___
       const leftEndAir = g.side < 0 ? endInAir : endOutAir;
       const rightEndAir = g.side < 0 ? endOutAir : endInAir;
       const outer = [
-        shift([-sockR, SOCKET.h]),
+        shift([-sockR, spec.topH]),
         shift([-sockR, 0]),
         ...leftWall,
         leftEnd,
         rightEnd,
         ...rightWall.slice().reverse(),
         shift([sockR, 0]),
-        shift([sockR, SOCKET.h]),
+        shift([sockR, spec.topH]),
       ];
       const inner = [
         leftEndAir,
         ...leftAir.slice().reverse(),
         shift([-exitR, 0]),
-        shift([-boreR, 6]),
-        shift([-boreR, 40]),
-        shift([-mouthR, SOCKET.h]),
-        shift([mouthR, SOCKET.h]),
-        shift([boreR, 40]),
-        shift([boreR, 6]),
+        shift([-boreR, Math.min(6, spec.topH)]),
+        shift([-mouthR, spec.topH]),
+        shift([mouthR, spec.topH]),
+        shift([boreR, Math.min(6, spec.topH)]),
         shift([exitR, 0]),
         ...rightAir,
         rightEndAir,
       ];
-      return { outer, inner };
+      return { outer, inner, stopPolys: [] };
     }
 
     function draw(spec) {
       const svg = document.getElementById("diagram");
-      const { outer, inner } = sectionProfile(spec);
-      const xs = outer.map((point) => point[0]);
-      const zs = outer.map((point) => point[1]);
+      const { outer, inner, stopPolys } = sectionProfile(spec);
+      const allPoints = outer.concat(inner);
+      for (const poly of stopPolys || []) allPoints.push(...poly.outer);
+      const xs = allPoints.map((point) => point[0]);
+      const zs = allPoints.map((point) => point[1]);
       const minX = Math.min(...xs);
       const maxX = Math.max(...xs);
       const minZ = Math.min(...zs);
@@ -700,7 +1057,7 @@ ___SCAD_SOURCE___
       const chain = (points) => points.map(([x, z]) => xOf(x).toFixed(2) + "," + yOf(z).toFixed(2)).join(" ");
 
       const title =
-        "Side view. The socket mouth is at the top. " + summaryText(spec);
+        "Side view. The top mouth is at the top. " + summaryText(spec);
       const dim = (x1, y1, x2, y2) =>
         '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) +
         '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="#8a8175" stroke-width="1"/>';
@@ -718,23 +1075,30 @@ ___SCAD_SOURCE___
           display(spec.width) + " mm wide</text>";
       }
 
+      const stopSvg = (stopPolys || []).map((poly) =>
+        '<polygon points="' + chain(poly.outer) +
+        '" fill="#b7c9b5" stroke="#0e5c32" stroke-width="1"/>'
+      ).join("");
       svg.setAttribute("viewBox", "0 0 " + width.toFixed(1) + " " + height.toFixed(1));
       svg.innerHTML =
         '<title id="diagram-title">' + title + "</title>" +
         '<polygon points="' + chain(outer) + '" fill="#d7e4d6" stroke="#0e5c32" stroke-width="1.5"/>' +
         '<polygon points="' + chain(inner) + '" fill="#fffcf7" stroke="#0e5c32" stroke-width="1"/>' +
+        stopSvg +
         dim(28, yOf(minZ), 28, yOf(maxZ)) +
         '<text x="22" y="' + midY.toFixed(1) + '" text-anchor="middle" transform="rotate(-90 22 ' +
           midY.toFixed(1) + ')" fill="#5c564c" font-size="13">' + heightLabel + "</text>" +
         widthDim +
         '<text x="' + labelX.toFixed(1) + '" y="' + (midY - 8).toFixed(1) +
-          '" fill="#1c1915" font-size="13">Tube ' + display(spec.tubeId) + " / " +
+          '" fill="#1c1915" font-size="13">Bottom ' + display(spec.tubeId) + " / " +
           display(spec.tubeOd) + " mm</text>" +
         '<text x="' + labelX.toFixed(1) + '" y="' + (midY + 8).toFixed(1) +
           '" fill="#5c564c" font-size="12">inside / outside</text>' +
         '<text x="' + labelX.toFixed(1) + '" y="' + (midY + 28).toFixed(1) +
-          '" fill="#1c1915" font-size="13">Socket ' + display(SOCKET.od) + " mm</text>" +
-        '<text x="' + xOf(0).toFixed(1) + '" y="18" text-anchor="middle" fill="#5c564c" font-size="12">mouth, twist-lock</text>';
+          '" fill="#1c1915" font-size="13">' + topLabel(spec) + "</text>" +
+        '<text x="' + xOf(0).toFixed(1) + '" y="18" text-anchor="middle" fill="#5c564c" font-size="12">' +
+          (spec.topStyle === "cleantec" ? "mouth, twist-lock" :
+            spec.topStyle === "dyson" ? "Dyson tip" : "top tube") + "</text>";
     }
 
     let stlBusy = false;
@@ -786,6 +1150,7 @@ ___SCAD_SOURCE___
     }
 
     function refresh() {
+      syncTopFields();
       const input = readForm();
       const result = describe(input);
       const error = document.getElementById("error");
@@ -800,6 +1165,10 @@ ___SCAD_SOURCE___
       setButtons(false);
       summary.textContent = summaryText(result);
       result.diameter = input.diameter;
+      result.topDiameter = input.topDiameter;
+      result.topLength = input.topLength;
+      result.stopperLength = input.stopperLength;
+      result.stopperHeight = input.stopperHeight;
       draw(result);
     }
 
@@ -809,10 +1178,20 @@ ___SCAD_SOURCE___
       document.getElementById("thickness").value = paramLine("wall_thickness");
       document.getElementById("angle").value = paramLine("angle");
       document.getElementById("angle-range").value = paramLine("angle");
+      document.getElementById("top_diameter").value = paramLine("top_diameter");
+      document.getElementById("top_length").value = paramLine("top_wall_length");
+      document.getElementById("stopper_length").value = paramLine("stopper_length");
+      document.getElementById("stopper_height").value = paramLine("stopper_height");
       const measurement = paramLine("measurement");
       document.querySelector('input[name="measurement"][value="' + measurement + '"]').checked = true;
+      const topMeasurement = paramLine("top_measurement");
+      document.querySelector('input[name="top_measurement"][value="' + topMeasurement + '"]').checked = true;
+      const topStyle = paramLine("top_style");
+      document.querySelector('input[name="top_style"][value="' + topStyle + '"]').checked = true;
       const alignment = paramLine("alignment");
       document.querySelector('input[name="alignment"][value="' + alignment + '"]').checked = true;
+      const stopperSide = paramLine("stopper_side");
+      document.querySelector('input[name="stopper_side"][value="' + stopperSide + '"]').checked = true;
       document.getElementById("optimize").checked = paramLine("optimize_print") === "true";
       document.getElementById("adapter-form").addEventListener("input", (event) => {
         if (event.target.id === "angle" && event.target.value !== "") {
@@ -831,6 +1210,10 @@ ___SCAD_SOURCE___
           return;
         }
         result.diameter = input.diameter;
+        result.topDiameter = input.topDiameter;
+        result.topLength = input.topLength;
+        result.stopperLength = input.stopperLength;
+        result.stopperHeight = input.stopperHeight;
         download(result);
       });
       document.getElementById("download-stl").addEventListener("click", () => {
@@ -841,6 +1224,10 @@ ___SCAD_SOURCE___
           return;
         }
         result.diameter = input.diameter;
+        result.topDiameter = input.topDiameter;
+        result.topLength = input.topLength;
+        result.stopperLength = input.stopperLength;
+        result.stopperHeight = input.stopperHeight;
         downloadStl(result);
       });
       refresh();
