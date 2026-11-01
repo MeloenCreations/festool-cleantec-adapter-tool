@@ -245,7 +245,16 @@
           <span class="choices">
             <label><input type="checkbox" id="optimize" name="optimize"> Optimize for 3D printing</label>
           </span>
-          <span class="hint">Adds 0.2 mm of clearance on every sized diameter. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller. The Dyson outer diameter also shrinks by 0.2 mm. Stopper outer corners are cut at 45° to the horizontal top and bottom edges so they need no support.</span>
+          <span class="hint">Adds clearance on every sized diameter. An inner diameter is printed larger by the allowance, an outer diameter smaller. The Dyson outer diameter also shrinks. Stopper outer corners are cut at 45° to the horizontal top and bottom edges so they need no support.</span>
+          <div id="optimize-fields" class="top-tube-only" hidden>
+            <label class="field">Print allowance
+              <span class="control">
+                <input id="print_allowance" type="number" name="print_allowance" min="0" max="2" step="0.05">
+                <span class="unit">mm</span>
+              </span>
+              <span class="hint">How much to open an inner diameter or shrink an outer diameter. 0.2&nbsp;mm suits most FDM prints.</span>
+            </label>
+          </div>
         </div>
         <label class="field">Wall thickness
           <span class="control">
@@ -323,7 +332,7 @@
       <ul>
         <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
         <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
-        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on every sized diameter, including a top tube and the Dyson outer diameter. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller. It also cuts the stopper’s outer corners at 45° to its horizontal top and bottom edges so the overhang needs no support.</li>
+        <li>Optimize for 3D printing adds a print allowance on every sized diameter, including a top tube and the Dyson outer diameter. An inner diameter is printed larger by that amount, an outer diameter smaller. The allowance defaults to 0.2&nbsp;mm and is editable when optimize is on. It also cuts the stopper’s outer corners at 45° to its horizontal top and bottom edges so the overhang needs no support.</li>
         <li>A stopper is a ridge in the transition: inside, outside, or both. Set its length along the axis and its height out from the wall. On a bend the outer shoulder runs farther than the inner one.</li>
         <li>Print with the bottom tube on the bed and the top mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
         <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
@@ -338,16 +347,16 @@
 // connector, or a plain tube. The bottom end is a tube. Set each tube's
 // diameter, whether that diameter is the inside or the outside, the tube
 // length, and the wall thickness. Optimize for 3D printing opens an inner
-// diameter by 0.2 mm, or shrinks an outer diameter by 0.2 mm, on every
-// sized end (bottom tube, top tube, and the Dyson connector). The bottom
-// tube can stay centered or slide across until one outer wall lines up
-// with the top, and it can leave the top at an angle from -90 to 90
-// degrees. An optional stopper ridge sits in the transition: inside,
-// outside, or both. Set its length along the axis and its height out
-// from the wall. On a bend the outer shoulder runs farther than the
-// inner one. Optimize for 3D printing cuts the stopper's outer corners
-// at 45 degrees to its horizontal top and bottom edges so the overhang
-// needs no support.
+// diameter by print_allowance, or shrinks an outer diameter by that same
+// amount, on every sized end (bottom tube, top tube, and the Dyson
+// connector). The bottom tube can stay centered or slide across until
+// one outer wall lines up with the top, and it can leave the top at an
+// angle from -90 to 90 degrees. An optional stopper ridge sits in the
+// transition: inside, outside, or both. Set its length along the axis
+// and its height out from the wall. On a bend the outer shoulder runs
+// farther than the inner one. Optimize for 3D printing cuts the
+// stopper's outer corners at 45 degrees to its horizontal top and
+// bottom edges so the overhang needs no support.
 // Circles are divided into flats 0.25 mm wide, which is finer than a
 // 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
@@ -386,10 +395,14 @@ diameter = 28; // [1:0.1:200]
 // Which face of the bottom tube `diameter` measures.
 measurement = "inner"; // [inner, outer]
 
-// Ease sized diameters by 0.2 mm for a typical FDM print.
-// An inner diameter is printed 0.2 mm larger. An outer diameter is printed 0.2 mm smaller.
-// Applies to the bottom tube, a top tube, and the Dyson connector.
+// Ease sized diameters for a typical FDM print.
+// An inner diameter is printed larger by print_allowance. An outer diameter
+// is printed smaller by the same amount. Applies to the bottom tube, a top
+// tube, and the Dyson connector.
 optimize_print = false;
+
+// Clearance applied when optimize_print is on, in millimetres.
+print_allowance = 0.2; // [0:0.05:2]
 
 // Length of the straight bottom tube, in millimetres.
 // The top end and the transition are added on top of this.
@@ -459,7 +472,7 @@ dyson_clip_len = 9.5;
 dyson_clip_wall = 2.5;
 dyson_clip_width = 3;
 
-allowance = optimize_print ? 0.2 : 0;
+allowance = optimize_print ? print_allowance : 0;
 
 function sized_diameter(d, face) =
     (face == "outer") ? d - allowance : d + allowance;
@@ -506,10 +519,12 @@ assert(diameter > 0 && wall_length > 0 && wall_thickness > 0,
        "Diameter, length, and wall thickness must be positive.");
 assert(top_diameter > 0 && top_wall_length > 0,
        "Top diameter and top length must be positive.");
+assert(print_allowance >= 0,
+       "Print allowance must be zero or a positive number.");
 assert(bottom_sized > 0,
-       "The print allowance removes the whole bottom diameter. Increase it or turn optimization off.");
+       "The print allowance removes the whole bottom diameter. Reduce the allowance or turn optimization off.");
 assert(top_style != "tube" || top_sized > 0,
-       "The print allowance removes the whole top diameter. Increase it or turn optimization off.");
+       "The print allowance removes the whole top diameter. Reduce the allowance or turn optimization off.");
 assert(tube_id > 0.5,
        "Wall thickness leaves no airflow. Reduce it or increase the diameter.");
 assert(top_style != "tube" || top_tube_id > 0.5,
@@ -1142,6 +1157,7 @@ echo(Stopper_side = stopper_side);
 echo(Stopper_length = stopper_on ? stopper_length : 0);
 echo(Stopper_height = stopper_on ? stopper_height : 0);
 echo(Stopper_chamfer = stopper_chamfer);
+echo(Print_allowance = allowance);
 
   </script>
   <script>
@@ -1200,6 +1216,7 @@ echo(Stopper_chamfer = stopper_chamfer);
       const topLength = readNumber("top_length");
       const stopperLength = readNumber("stopper_length");
       const stopperHeight = readNumber("stopper_height");
+      const printAllowance = readNumber("print_allowance");
       const measurement = document.querySelector('input[name="measurement"]:checked')?.value;
       const topMeasurement = document.querySelector('input[name="top_measurement"]:checked')?.value;
       const topStyle = document.querySelector('input[name="top_style"]:checked')?.value;
@@ -1207,7 +1224,7 @@ echo(Stopper_chamfer = stopper_chamfer);
       const stopperSide = document.querySelector('input[name="stopper_side"]:checked')?.value;
       const optimize = document.getElementById("optimize").checked;
       return {
-        diameter, length, thickness, measurement, alignment, angle, optimize,
+        diameter, length, thickness, measurement, alignment, angle, optimize, printAllowance,
         topStyle, topDiameter, topMeasurement, topLength,
         stopperSide, stopperLength, stopperHeight,
       };
@@ -1218,6 +1235,7 @@ echo(Stopper_chamfer = stopper_chamfer);
       document.getElementById("top-tube-fields").hidden = topStyle !== "tube";
       const stopperSide = document.querySelector('input[name="stopper_side"]:checked')?.value;
       document.getElementById("stopper-fields").hidden = stopperSide === "none" || !stopperSide;
+      document.getElementById("optimize-fields").hidden = !document.getElementById("optimize").checked;
     }
 
     function scadCos(degrees) {
@@ -1340,7 +1358,7 @@ echo(Stopper_chamfer = stopper_chamfer);
 
     function describe(input) {
       const {
-        diameter, length, thickness, measurement, alignment, angle, optimize,
+        diameter, length, thickness, measurement, alignment, angle, optimize, printAllowance,
         topStyle, topDiameter, topMeasurement, topLength,
         stopperSide, stopperLength, stopperHeight,
       } = input;
@@ -1356,6 +1374,7 @@ echo(Stopper_chamfer = stopper_chamfer);
       const required = [diameter, length, thickness, angle];
       if (topStyle === "tube") required.push(topDiameter, topLength);
       if (stopperSide !== "none") required.push(stopperLength, stopperHeight);
+      if (optimize) required.push(printAllowance);
       if (!required.every(Number.isFinite)) {
         return { error: "Enter a number for every size field." };
       }
@@ -1371,10 +1390,14 @@ echo(Stopper_chamfer = stopper_chamfer);
       if (stopperSide !== "none" && (stopperLength <= 0 || stopperHeight <= 0)) {
         return { error: "Stopper length and height must be positive." };
       }
-      const allowance = optimize ? 0.2 : 0;
+      const allowanceValue = Number.isFinite(printAllowance) ? printAllowance : 0.2;
+      if (optimize && allowanceValue < 0) {
+        return { error: "Print allowance must be zero or a positive number." };
+      }
+      const allowance = optimize ? allowanceValue : 0;
       const sized = measurement === "outer" ? diameter - allowance : diameter + allowance;
       if (sized <= 0) {
-        return { error: "The print allowance removes the whole bottom diameter. Increase it or turn optimization off." };
+        return { error: "The print allowance removes the whole bottom diameter. Reduce the allowance or turn optimization off." };
       }
       const tubeId = measurement === "outer" ? sized - 2 * thickness : sized;
       const tubeOd = measurement === "outer" ? sized : sized + 2 * thickness;
@@ -1398,7 +1421,7 @@ echo(Stopper_chamfer = stopper_chamfer);
       } else {
         const topSized = topMeasurement === "outer" ? topDiameter - allowance : topDiameter + allowance;
         if (topSized <= 0) {
-          return { error: "The print allowance removes the whole top diameter. Increase it or turn optimization off." };
+          return { error: "The print allowance removes the whole top diameter. Reduce the allowance or turn optimization off." };
         }
         topId = topMeasurement === "outer" ? topSized - 2 * thickness : topSized;
         topOd = topMeasurement === "outer" ? topSized : topSized + 2 * thickness;
@@ -1429,6 +1452,7 @@ echo(Stopper_chamfer = stopper_chamfer);
         : 0;
       const spec = {
         diameter, tubeId, tubeOd, length, thickness, measurement, alignment, angle, optimize,
+        printAllowance: allowanceValue,
         transition, total, topStyle, topDiameter, topMeasurement, topLength,
         topOd, topId, topH, topBoreD, topMouthD,
         stopperSide, stopperLength, stopperHeight, stopperChamfer,
@@ -1471,20 +1495,21 @@ echo(Stopper_chamfer = stopper_chamfer);
       }
       let fit = "";
       if (spec.optimize) {
+        const fitMm = display(spec.printAllowance);
         const bits = [];
         bits.push(
           spec.measurement === "outer"
-            ? "bottom outer printed 0.2 mm smaller than " + display(spec.diameter) + " mm"
-            : "bottom inner printed 0.2 mm larger than " + display(spec.diameter) + " mm"
+            ? "bottom outer printed " + fitMm + " mm smaller than " + display(spec.diameter) + " mm"
+            : "bottom inner printed " + fitMm + " mm larger than " + display(spec.diameter) + " mm"
         );
         if (spec.topStyle === "tube") {
           bits.push(
             spec.topMeasurement === "outer"
-              ? "top outer printed 0.2 mm smaller than " + display(spec.topDiameter) + " mm"
-              : "top inner printed 0.2 mm larger than " + display(spec.topDiameter) + " mm"
+              ? "top outer printed " + fitMm + " mm smaller than " + display(spec.topDiameter) + " mm"
+              : "top inner printed " + fitMm + " mm larger than " + display(spec.topDiameter) + " mm"
           );
         } else if (spec.topStyle === "dyson") {
-          bits.push("Dyson outer printed 0.2 mm smaller");
+          bits.push("Dyson outer printed " + fitMm + " mm smaller");
         }
         if (spec.stopperSide !== "none") {
           bits.push("stopper outer corners cut 45° to the horizontal edges");
@@ -1511,6 +1536,7 @@ echo(Stopper_chamfer = stopper_chamfer);
         .replace(/^diameter = [^;]+;/m, "diameter = " + fmt(spec.diameter) + ";")
         .replace(/^measurement = "[^"]+";/m, 'measurement = "' + spec.measurement + '";')
         .replace(/^optimize_print = [^;]+;/m, "optimize_print = " + (spec.optimize ? "true" : "false") + ";")
+        .replace(/^print_allowance = [^;]+;/m, "print_allowance = " + fmt(spec.printAllowance || 0.2) + ";")
         .replace(/^wall_length = [^;]+;/m, "wall_length = " + fmt(spec.length) + ";")
         .replace(/^wall_thickness = [^;]+;/m, "wall_thickness = " + fmt(spec.thickness) + ";")
         .replace(/^alignment = "[^"]+";/m, 'alignment = "' + spec.alignment + '";')
@@ -1529,7 +1555,7 @@ echo(Stopper_chamfer = stopper_chamfer);
         "// Top " + topNote + ", bottom " + spec.measurement + " diameter " + fmt(spec.diameter) +
         " mm, length " + fmt(spec.length) + " mm, wall " + fmt(spec.thickness) +
         " mm, " + spec.alignment + ", angle " + fmt(spec.angle) + " deg" + stop +
-        (spec.optimize ? ", print fit 0.2 mm" : "") + ".\n";
+        (spec.optimize ? ", print fit " + fmt(spec.printAllowance || 0.2) + " mm" : "") + ".\n";
       return note + source;
     }
 
@@ -1546,7 +1572,7 @@ echo(Stopper_chamfer = stopper_chamfer);
       if (spec.stopperSide !== "none") {
         name += "-stop" + spec.stopperSide[0] + fmt(spec.stopperLength) + "x" + fmt(spec.stopperHeight);
       }
-      if (spec.optimize) name += "-fit";
+      if (spec.optimize) name += "-fit" + fmt(spec.printAllowance || 0.2);
       return name;
     }
 
@@ -2076,6 +2102,7 @@ echo(Stopper_chamfer = stopper_chamfer);
       document.getElementById("top_length").value = paramLine("top_wall_length");
       document.getElementById("stopper_length").value = paramLine("stopper_length");
       document.getElementById("stopper_height").value = paramLine("stopper_height");
+      document.getElementById("print_allowance").value = paramLine("print_allowance");
       const measurement = paramLine("measurement");
       document.querySelector('input[name="measurement"][value="' + measurement + '"]').checked = true;
       const topMeasurement = paramLine("top_measurement");

@@ -4,16 +4,16 @@
 // connector, or a plain tube. The bottom end is a tube. Set each tube's
 // diameter, whether that diameter is the inside or the outside, the tube
 // length, and the wall thickness. Optimize for 3D printing opens an inner
-// diameter by 0.2 mm, or shrinks an outer diameter by 0.2 mm, on every
-// sized end (bottom tube, top tube, and the Dyson connector). The bottom
-// tube can stay centered or slide across until one outer wall lines up
-// with the top, and it can leave the top at an angle from -90 to 90
-// degrees. An optional stopper ridge sits in the transition: inside,
-// outside, or both. Set its length along the axis and its height out
-// from the wall. On a bend the outer shoulder runs farther than the
-// inner one. Optimize for 3D printing cuts the stopper's outer corners
-// at 45 degrees to its horizontal top and bottom edges so the overhang
-// needs no support.
+// diameter by print_allowance, or shrinks an outer diameter by that same
+// amount, on every sized end (bottom tube, top tube, and the Dyson
+// connector). The bottom tube can stay centered or slide across until
+// one outer wall lines up with the top, and it can leave the top at an
+// angle from -90 to 90 degrees. An optional stopper ridge sits in the
+// transition: inside, outside, or both. Set its length along the axis
+// and its height out from the wall. On a bend the outer shoulder runs
+// farther than the inner one. Optimize for 3D printing cuts the
+// stopper's outer corners at 45 degrees to its horizontal top and
+// bottom edges so the overhang needs no support.
 // Circles are divided into flats 0.25 mm wide, which is finer than a
 // 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
@@ -52,10 +52,14 @@ diameter = 28; // [1:0.1:200]
 // Which face of the bottom tube `diameter` measures.
 measurement = "inner"; // [inner, outer]
 
-// Ease sized diameters by 0.2 mm for a typical FDM print.
-// An inner diameter is printed 0.2 mm larger. An outer diameter is printed 0.2 mm smaller.
-// Applies to the bottom tube, a top tube, and the Dyson connector.
+// Ease sized diameters for a typical FDM print.
+// An inner diameter is printed larger by print_allowance. An outer diameter
+// is printed smaller by the same amount. Applies to the bottom tube, a top
+// tube, and the Dyson connector.
 optimize_print = false;
+
+// Clearance applied when optimize_print is on, in millimetres.
+print_allowance = 0.2; // [0:0.05:2]
 
 // Length of the straight bottom tube, in millimetres.
 // The top end and the transition are added on top of this.
@@ -125,7 +129,7 @@ dyson_clip_len = 9.5;
 dyson_clip_wall = 2.5;
 dyson_clip_width = 3;
 
-allowance = optimize_print ? 0.2 : 0;
+allowance = optimize_print ? print_allowance : 0;
 
 function sized_diameter(d, face) =
     (face == "outer") ? d - allowance : d + allowance;
@@ -172,10 +176,12 @@ assert(diameter > 0 && wall_length > 0 && wall_thickness > 0,
        "Diameter, length, and wall thickness must be positive.");
 assert(top_diameter > 0 && top_wall_length > 0,
        "Top diameter and top length must be positive.");
+assert(print_allowance >= 0,
+       "Print allowance must be zero or a positive number.");
 assert(bottom_sized > 0,
-       "The print allowance removes the whole bottom diameter. Increase it or turn optimization off.");
+       "The print allowance removes the whole bottom diameter. Reduce the allowance or turn optimization off.");
 assert(top_style != "tube" || top_sized > 0,
-       "The print allowance removes the whole top diameter. Increase it or turn optimization off.");
+       "The print allowance removes the whole top diameter. Reduce the allowance or turn optimization off.");
 assert(tube_id > 0.5,
        "Wall thickness leaves no airflow. Reduce it or increase the diameter.");
 assert(top_style != "tube" || top_tube_id > 0.5,
@@ -808,3 +814,4 @@ echo(Stopper_side = stopper_side);
 echo(Stopper_length = stopper_on ? stopper_length : 0);
 echo(Stopper_height = stopper_on ? stopper_height : 0);
 echo(Stopper_chamfer = stopper_chamfer);
+echo(Print_allowance = allowance);
