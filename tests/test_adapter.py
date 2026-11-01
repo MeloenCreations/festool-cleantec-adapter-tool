@@ -182,7 +182,7 @@ class GenerateTests(unittest.TestCase):
         self.assertIn('name="stopper_side" value="both"', page)
         self.assertIn('id="stopper_length"', page)
         self.assertIn('id="stopper_height"', page)
-        self.assertIn("tapered 45", page)
+        self.assertIn("45° to the horizontal", page)
 
     def test_print_fit_eases_the_chosen_diameter(self):
         source = generate.load_template()
@@ -687,6 +687,7 @@ class RenderTests(unittest.TestCase):
         self.assertAlmostEqual(without - with_stop, 3, delta=0.5)
 
     def test_stopper_print_fit_tapers_the_edges(self):
+        # Length > 2*height so the outer face has a flat between the 45° corners.
         echoes, verts = self.render_case(
             28,
             "inner",
@@ -694,7 +695,7 @@ class RenderTests(unittest.TestCase):
             3,
             optimize=True,
             stopper_side="outside",
-            stopper_length=6,
+            stopper_length=8,
             stopper_height=3,
         )
         self.assertAlmostEqual(echoes["Stopper_chamfer"], 3)
@@ -704,11 +705,14 @@ class RenderTests(unittest.TestCase):
         mid = 40 + echoes["Transition_h"] / 2
         plain_mid = 40 + plain_echoes["Transition_h"] / 2
         base = float(np.nanmax(section_radii(plain_verts, plain_mid)[1]))
-        # Full height at the middle.
+        # Full height along the flat outer face.
         self.assertAlmostEqual(float(np.nanmax(section_radii(verts, mid)[1])) - base, 3, delta=0.45)
-        # Near the start of the 45° taper the ridge has almost no height.
-        near_end = mid - 2.8
+        # Just above the bottom outer edge the 45° face has only begun to rise.
+        near_end = mid - 3.7
         self.assertLess(float(np.nanmax(section_radii(verts, near_end)[1])) - base, 0.7)
+        # On the bottom horizontal outer edge the tip has not started yet.
+        bottom = mid - 4.0
+        self.assertLess(float(np.nanmax(section_radii(verts, bottom)[1])) - base, 0.35)
 
     def test_stopper_on_a_bend_stays_manifold(self):
         echoes, verts = self.render_case(

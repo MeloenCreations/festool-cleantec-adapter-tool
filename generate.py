@@ -397,7 +397,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--optimize-print",
         action="store_true",
-        help="Ease sized diameters by 0.2 mm: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter and tapers stopper edges at 45 degrees.",
+        help="Ease sized diameters by 0.2 mm: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter and cuts stopper outer corners at 45 degrees to the horizontal edges.",
     )
     parser.add_argument(
         "--stopper",
