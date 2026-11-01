@@ -172,8 +172,11 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("facet = 0.25;", page)
         self.assertIn('", angle " + fmt(spec.angle) + " deg" +', page)
         self.assertIn('id="optimize"', page)
+        self.assertIn('id="print_allowance"', page)
+        self.assertIn('id="optimize-fields"', page)
+        self.assertIn("print_allowance = 0.2;", page)
         self.assertIn(
-            "An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller.",
+            "An inner diameter is printed larger by the allowance, an outer diameter smaller.",
             page,
         )
         self.assertIn('name="top_style" value="dyson"', page)
@@ -182,13 +185,14 @@ class GenerateTests(unittest.TestCase):
         self.assertIn('name="stopper_side" value="both"', page)
         self.assertIn('id="stopper_length"', page)
         self.assertIn('id="stopper_height"', page)
-        self.assertIn("tapered 45", page)
+        self.assertIn("45° to the horizontal", page)
 
     def test_print_fit_eases_the_chosen_diameter(self):
         source = generate.load_template()
         inner = generate.substitute(source, 28, "inner", 40, 3, optimize=True)
         self.assertIn("diameter = 28;", inner)
         self.assertIn("optimize_print = true;", inner)
+        self.assertIn("print_allowance = 0.2;", inner)
         self.assertTrue(
             inner.startswith(
                 "// Top CLEANTEC, bottom inner diameter 28 mm, length 40 mm, wall 3 mm, "
@@ -203,11 +207,18 @@ class GenerateTests(unittest.TestCase):
                 "center, angle 0 deg, print fit 0.2 mm.\n"
             )
         )
+        custom = generate.substitute(
+            source, 28, "inner", 40, 3, optimize=True, print_allowance=0.3
+        )
+        self.assertIn("print_allowance = 0.3;", custom)
+        self.assertIn("print fit 0.3 mm", custom)
         plain = generate.substitute(source, 28, "inner", 40, 3)
         self.assertIn("optimize_print = false;", plain)
         self.assertNotIn("print fit", plain)
         with self.assertRaises(ValueError):
             generate.substitute(source, 0.2, "outer", 40, 0.4, optimize=True)
+        with self.assertRaises(ValueError):
+            generate.substitute(source, 28, "inner", 40, 3, optimize=True, print_allowance=-0.1)
 
     def test_top_styles_are_written(self):
         source = generate.load_template()
@@ -262,6 +273,7 @@ class RenderTests(unittest.TestCase):
         stopper_side="none",
         stopper_length=4,
         stopper_height=3,
+        print_allowance=0.2,
     ):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
@@ -283,6 +295,7 @@ class RenderTests(unittest.TestCase):
                 stopper_side,
                 stopper_length,
                 stopper_height,
+                print_allowance,
             )
             text = text.replace("resolution = 0;", "resolution = 48;", 1)
             scad.write_text(text, encoding="utf-8")
@@ -345,11 +358,25 @@ class RenderTests(unittest.TestCase):
         echoes, verts = self.render_case(28, "inner", 40, 3, optimize=True)
         self.assertAlmostEqual(echoes["Tube_ID"], 28.2)
         self.assertAlmostEqual(echoes["Tube_OD"], 34.2)
+        self.assertAlmostEqual(echoes["Print_allowance"], 0.2)
         import numpy as np
 
         mins, maxs = section_radii(verts, 20)
         self.assertAlmostEqual(float(np.nanmin(mins)), 14.1, delta=0.15)
         self.assertAlmostEqual(float(np.nanmax(maxs)), 17.1, delta=0.15)
+
+    def test_custom_print_allowance_is_applied(self):
+        echoes, verts = self.render_case(
+            28, "inner", 40, 3, optimize=True, print_allowance=0.4
+        )
+        self.assertAlmostEqual(echoes["Print_allowance"], 0.4)
+        self.assertAlmostEqual(echoes["Tube_ID"], 28.4)
+        self.assertAlmostEqual(echoes["Tube_OD"], 34.4)
+        import numpy as np
+
+        mins, maxs = section_radii(verts, 20)
+        self.assertAlmostEqual(float(np.nanmin(mins)), 14.2, delta=0.15)
+        self.assertAlmostEqual(float(np.nanmax(maxs)), 17.2, delta=0.15)
 
     def test_print_fit_shrinks_an_outer_diameter(self):
         echoes, verts = self.render_case(28, "outer", 40, 3, optimize=True)
@@ -687,6 +714,7 @@ class RenderTests(unittest.TestCase):
         self.assertAlmostEqual(without - with_stop, 3, delta=0.5)
 
     def test_stopper_print_fit_tapers_the_edges(self):
+        # Length > 2*height so the outer face has a flat between the 45° corners.
         echoes, verts = self.render_case(
             28,
             "inner",
@@ -694,7 +722,7 @@ class RenderTests(unittest.TestCase):
             3,
             optimize=True,
             stopper_side="outside",
-            stopper_length=6,
+            stopper_length=8,
             stopper_height=3,
         )
         self.assertAlmostEqual(echoes["Stopper_chamfer"], 3)
@@ -704,11 +732,14 @@ class RenderTests(unittest.TestCase):
         mid = 40 + echoes["Transition_h"] / 2
         plain_mid = 40 + plain_echoes["Transition_h"] / 2
         base = float(np.nanmax(section_radii(plain_verts, plain_mid)[1]))
-        # Full height at the middle.
+        # Full height along the flat outer face.
         self.assertAlmostEqual(float(np.nanmax(section_radii(verts, mid)[1])) - base, 3, delta=0.45)
-        # Near the start of the 45° taper the ridge has almost no height.
-        near_end = mid - 2.8
+        # Just above the bottom outer edge the 45° face has only begun to rise.
+        near_end = mid - 3.7
         self.assertLess(float(np.nanmax(section_radii(verts, near_end)[1])) - base, 0.7)
+        # On the bottom horizontal outer edge the tip has not started yet.
+        bottom = mid - 4.0
+        self.assertLess(float(np.nanmax(section_radii(verts, bottom)[1])) - base, 0.35)
 
     def test_stopper_on_a_bend_stays_manifold(self):
         echoes, verts = self.render_case(

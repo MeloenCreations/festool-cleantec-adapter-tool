@@ -40,6 +40,7 @@ PARAM_PATTERNS = {
     "diameter": re.compile(r"^diameter = [^;]+;", re.M),
     "measurement": re.compile(r'^measurement = "[^"]+";', re.M),
     "optimize_print": re.compile(r"^optimize_print = [^;]+;", re.M),
+    "print_allowance": re.compile(r"^print_allowance = [^;]+;", re.M),
     "wall_length": re.compile(r"^wall_length = [^;]+;", re.M),
     "wall_thickness": re.compile(r"^wall_thickness = [^;]+;", re.M),
     "alignment": re.compile(r'^alignment = "[^"]+";', re.M),
@@ -65,13 +66,18 @@ def tube_diameters(diameter: float, measurement: str, thickness: float) -> tuple
     raise ValueError('measurement must be "inner" or "outer".')
 
 
-def eased_diameter(diameter: float, measurement: str, optimize: bool) -> float:
+def eased_diameter(
+    diameter: float,
+    measurement: str,
+    optimize: bool,
+    print_allowance: float = PRINT_ALLOWANCE,
+) -> float:
     if not optimize:
         return diameter
-    eased = diameter - PRINT_ALLOWANCE if measurement == "outer" else diameter + PRINT_ALLOWANCE
+    eased = diameter - print_allowance if measurement == "outer" else diameter + print_allowance
     if eased <= 0:
         raise ValueError(
-            "The print allowance removes the whole diameter. Increase it or turn optimization off."
+            "The print allowance removes the whole diameter. Reduce the allowance or turn optimization off."
         )
     return eased
 
@@ -83,15 +89,16 @@ def top_dims(
     top_length: float,
     thickness: float,
     optimize: bool,
+    print_allowance: float = PRINT_ALLOWANCE,
 ) -> tuple[float, float, float]:
     """Return (outer diameter, exit / inner diameter, height) for the top end."""
     if top_style == "cleantec":
         return CLEANTEC_OD, CLEANTEC_EXIT_D, CLEANTEC_H
     if top_style == "dyson":
-        od = DYSON_OD - PRINT_ALLOWANCE if optimize else DYSON_OD
+        od = DYSON_OD - print_allowance if optimize else DYSON_OD
         return od, DYSON_ID, DYSON_H
     if top_style == "tube":
-        sized = eased_diameter(top_diameter, top_measurement, optimize)
+        sized = eased_diameter(top_diameter, top_measurement, optimize, print_allowance)
         tube_id, tube_od = tube_diameters(sized, top_measurement, thickness)
         if tube_id <= 0.5:
             raise ValueError(
@@ -116,6 +123,7 @@ def validate(
     stopper_side: str = "none",
     stopper_length: float = 4,
     stopper_height: float = 3,
+    print_allowance: float = PRINT_ALLOWANCE,
 ) -> tuple[float, float, float, float, float]:
     if top_style not in TOP_STYLES:
         raise ValueError('top_style must be "cleantec", "dyson", or "tube".')
@@ -138,18 +146,26 @@ def validate(
             raise ValueError(f"{name.capitalize()} must be a positive number.")
     if not math.isfinite(angle) or angle < -90 or angle > 90:
         raise ValueError("Angle must be from -90 to 90 degrees.")
+    if not math.isfinite(print_allowance) or print_allowance < 0:
+        raise ValueError("Print allowance must be zero or a positive number.")
     if stopper_side != "none":
         for name, value in (("stopper length", stopper_length), ("stopper height", stopper_height)):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"{name.capitalize()} must be a positive number.")
-    sized = eased_diameter(diameter, measurement, optimize)
+    sized = eased_diameter(diameter, measurement, optimize, print_allowance)
     tube_id, tube_od = tube_diameters(sized, measurement, thickness)
     if tube_id <= 0.5:
         raise ValueError(
             "Wall thickness leaves no airflow. Reduce it or increase the diameter."
         )
     top_od, top_id, top_h = top_dims(
-        top_style, top_diameter, top_measurement, top_length, thickness, optimize
+        top_style,
+        top_diameter,
+        top_measurement,
+        top_length,
+        thickness,
+        optimize,
+        print_allowance,
     )
     if stopper_side in ("inside", "both"):
         min_bore = min(tube_id, top_id) / 2
@@ -176,6 +192,7 @@ def substitute(
     stopper_side: str = "none",
     stopper_length: float = 4,
     stopper_height: float = 3,
+    print_allowance: float = PRINT_ALLOWANCE,
 ) -> str:
     validate(
         diameter,
@@ -192,6 +209,7 @@ def substitute(
         stopper_side,
         stopper_length,
         stopper_height,
+        print_allowance,
     )
     replacements = {
         "top_style": f'top_style = "{top_style}";',
@@ -201,6 +219,7 @@ def substitute(
         "diameter": f"diameter = {fmt(diameter)};",
         "measurement": f'measurement = "{measurement}";',
         "optimize_print": f"optimize_print = {'true' if optimize else 'false'};",
+        "print_allowance": f"print_allowance = {fmt(print_allowance)};",
         "wall_length": f"wall_length = {fmt(length)};",
         "wall_thickness": f"wall_thickness = {fmt(thickness)};",
         "alignment": f'alignment = "{alignment}";',
@@ -214,7 +233,7 @@ def substitute(
         updated, count = pattern.subn(replacements[key], updated, count=1)
         if count != 1:
             raise RuntimeError(f"Could not find the {key} assignment in the OpenSCAD template.")
-    fit = f", print fit {fmt(PRINT_ALLOWANCE)} mm" if optimize else ""
+    fit = f", print fit {fmt(print_allowance)} mm" if optimize else ""
     top_note = {
         "cleantec": "CLEANTEC",
         "dyson": "Dyson V6",
@@ -397,7 +416,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--optimize-print",
         action="store_true",
-        help="Ease sized diameters by 0.2 mm: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter and tapers stopper edges at 45 degrees.",
+        help="Ease sized diameters by the print allowance: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter and cuts stopper outer corners at 45 degrees to the horizontal edges.",
+    )
+    parser.add_argument(
+        "--print-allowance",
+        type=float,
+        default=PRINT_ALLOWANCE,
+        help=f"Clearance in mm applied when --optimize-print is set (default {PRINT_ALLOWANCE}).",
     )
     parser.add_argument(
         "--stopper",
@@ -460,6 +485,7 @@ def main(argv: list[str] | None = None) -> int:
             args.stopper,
             args.stopper_length,
             args.stopper_height,
+            args.print_allowance,
         )
         if str(args.output) == "-":
             sys.stdout.write(text)
