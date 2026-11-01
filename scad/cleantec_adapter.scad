@@ -416,86 +416,106 @@ module top_extras() {
 }
 
 // 2D stopper profile. Y is along the adapter axis (print Z when straight).
-// The top and bottom edges are horizontal; optimize mode cuts the outer
-// corners at 45° to those edges so the overhang needs no support.
-module stopper_outside_profile(r0) {
+// The wall edge follows the cone from r_lo to r_hi so the ridge merges with
+// no gap. Tip height H is measured from the mid-span wall. The top and bottom
+// edges stay horizontal; optimize mode cuts the outer corners at 45° to those
+// edges so the overhang needs no support.
+module stopper_outside_profile(r_lo, r_hi) {
     L = stopper_length;
     H = stopper_height;
     c = stopper_chamfer;
+    r_ref = (r_lo + r_hi) / 2;
+    r_tip = r_ref + H;
+    // Follow the cone into the wall; clamp so a steep cone cannot push the
+    // wall edge past the horizontal outer edge (which would invert the poly).
+    r_outer_end = c > 0 ? r_tip - c : r_tip;
+    r_wall_lo = min(r_lo - 0.2, r_outer_end);
+    r_wall_hi = min(r_hi - 0.2, r_outer_end);
     if (c <= 0)
         polygon([
-            [r0 - eps, -L / 2],
-            [r0 + H, -L / 2],
-            [r0 + H, L / 2],
-            [r0 - eps, L / 2]
+            [r_wall_lo, -L / 2],
+            [r_tip, -L / 2],
+            [r_tip, L / 2],
+            [r_wall_hi, L / 2]
         ]);
     else if (c >= L / 2)
         // Pure 45° triangle: top and bottom outer edges meet at the tip.
         polygon([
-            [r0 - eps, -L / 2],
-            [r0 + H, 0],
-            [r0 - eps, L / 2]
+            [r_wall_lo, -L / 2],
+            [r_tip, 0],
+            [r_wall_hi, L / 2]
         ]);
     else
         polygon([
-            [r0 - eps, -L / 2],
-            [r0 + H - c, -L / 2],
-            [r0 + H, -L / 2 + c],
-            [r0 + H, L / 2 - c],
-            [r0 + H - c, L / 2],
-            [r0 - eps, L / 2]
+            [r_wall_lo, -L / 2],
+            [r_tip - c, -L / 2],
+            [r_tip, -L / 2 + c],
+            [r_tip, L / 2 - c],
+            [r_tip - c, L / 2],
+            [r_wall_hi, L / 2]
         ]);
 }
 
-module stopper_inside_profile(r0) {
+module stopper_inside_profile(r_lo, r_hi) {
     L = stopper_length;
     H = stopper_height;
     c = stopper_chamfer;
+    r_ref = (r_lo + r_hi) / 2;
+    r_tip = max(eps, r_ref - H);
+    r_inner_end = c > 0 ? r_tip + c : r_tip;
+    // Into the wall (larger radius); clamp so the poly stays simple.
+    r_wall_lo = max(r_lo + 0.2, r_inner_end);
+    r_wall_hi = max(r_hi + 0.2, r_inner_end);
     if (c <= 0)
         polygon([
-            [max(eps, r0 - H), -L / 2],
-            [r0 + eps, -L / 2],
-            [r0 + eps, L / 2],
-            [max(eps, r0 - H), L / 2]
+            [r_tip, -L / 2],
+            [r_wall_lo, -L / 2],
+            [r_wall_hi, L / 2],
+            [r_tip, L / 2]
         ]);
     else if (c >= L / 2)
         polygon([
-            [r0 + eps, -L / 2],
-            [r0 + eps, L / 2],
-            [max(eps, r0 - H), 0]
+            [r_wall_lo, -L / 2],
+            [r_wall_hi, L / 2],
+            [r_tip, 0]
         ]);
     else
         polygon([
-            [max(eps, r0 - H + c), -L / 2],
-            [r0 + eps, -L / 2],
-            [r0 + eps, L / 2],
-            [max(eps, r0 - H + c), L / 2],
-            [max(eps, r0 - H), L / 2 - c],
-            [max(eps, r0 - H), -L / 2 + c]
+            [r_tip + c, -L / 2],
+            [r_wall_lo, -L / 2],
+            [r_wall_hi, L / 2],
+            [r_tip + c, L / 2],
+            [r_tip, L / 2 - c],
+            [r_tip, -L / 2 + c]
         ]);
 }
 
-module stopper_ring(r_outer_attach, r_inner_attach) {
+module stopper_ring(r_out_lo, r_out_hi, r_in_lo, r_in_hi) {
     if (stopper_outside)
         rotate_extrude(convexity = 4)
-            stopper_outside_profile(r_outer_attach);
+            stopper_outside_profile(r_out_lo, r_out_hi);
     if (stopper_inside)
         rotate_extrude(convexity = 4)
-            stopper_inside_profile(r_inner_attach);
+            stopper_inside_profile(r_in_lo, r_in_hi);
 }
 
 // Straight stopper between the tube and the top, centred on the transition.
-// Attachment radii are taken at mid-span so the 45° faces stay true to the
-// horizontal top and bottom edges even when the transition cone slopes.
+// On a sloping transition the wall radius changes along the stopper. The
+// profile's wall edge follows that cone so there is no gap; tip height is
+// taken from the mid-span wall. The 45° faces stay relative to horizontal.
 module straight_stopper(z_tube1, z_sock0, tube_shift = 0) {
     if (stopper_on) {
         z_mid = z_sock0 - transition_h / 2;
+        t0 = max(0, min(1, (z_mid - stopper_length / 2 - z_tube1) / transition_h));
+        t1 = max(0, min(1, (z_mid + stopper_length / 2 - z_tube1) / transition_h));
         t_mid = max(0, min(1, (z_mid - z_tube1) / transition_h));
         off = tube_shift * (1 - smooth(t_mid));
-        r_out = lerp(tube_od / 2, socket_od / 2, t_mid);
-        r_in = lerp(tube_id / 2, socket_exit_d / 2, t_mid);
+        r_out_lo = lerp(tube_od / 2, socket_od / 2, t0);
+        r_out_hi = lerp(tube_od / 2, socket_od / 2, t1);
+        r_in_lo = lerp(tube_id / 2, socket_exit_d / 2, t0);
+        r_in_hi = lerp(tube_id / 2, socket_exit_d / 2, t1);
         translate([off, 0, z_mid])
-            stopper_ring(r_out, r_in);
+            stopper_ring(r_out_lo, r_out_hi, r_in_lo, r_in_hi);
     }
 }
 
