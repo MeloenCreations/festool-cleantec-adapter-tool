@@ -194,7 +194,7 @@
               <label><input type="radio" name="top_style" value="dyson"> Dyson V6</label>
               <label><input type="radio" name="top_style" value="tube"> Tube</label>
             </div>
-            <span class="hint">CLEANTEC takes a Festool hose plug. Dyson V6 is the male tip tools click onto. Tube is a plain sized end.</span>
+            <span class="hint">CLEANTEC takes a Festool hose plug. Dyson V6 is a male tip that plugs into a Dyson, like a stock tool. Tube is a plain sized end.</span>
           </fieldset>
           <div id="top-tube-fields" class="top-tube-only">
             <label class="field">Top diameter
@@ -326,7 +326,7 @@
     <section class="notes">
       <h2>How the top ends work</h2>
       <p>CLEANTEC: push the male plug on a Festool hose into the socket and twist until the three lugs sit behind the shelves. Twist back to the entry slots to remove it.</p>
-      <p>Dyson V6: slide a Dyson tool onto the male tip until the latch clicks into the groove. The four flats let the tool sit in any 90° orientation.</p>
+      <p>Dyson V6: push the male tip into a Dyson V6 (or DC35/DC45/DC52/DC58/DC59) until the vacuum’s latch clicks into the outer groove. The bore is smooth — locking is only on the outside.</p>
       <p>Tube: a plain cylinder sized by inner or outer diameter, the same way as the bottom end.</p>
       <h2>Printing</h2>
       <ul>
@@ -367,11 +367,10 @@ ___SCAD_SOURCE___
       od: constant("dyson_od_nom"),
       id: constant("dyson_id_nom"),
       h: constant("dyson_h"),
-      tipH: constant("dyson_tip_h"),
+      rimH: constant("dyson_rim_h"),
       grooveH: constant("dyson_groove_h"),
       grooveTaperH: constant("dyson_groove_taper_h"),
       grooveD: constant("dyson_groove_d"),
-      clipWall: constant("dyson_clip_wall"),
     };
 
     function fmt(value) {
@@ -501,7 +500,7 @@ ___SCAD_SOURCE___
       const stopExtra = (spec.stopperSide === "outside" || spec.stopperSide === "both")
         ? (spec.stopperHeight || 0)
         : 0;
-      const sockR = spec.topOd / 2 + (spec.topStyle === "dyson" ? DYSON.clipWall : 0);
+      const sockR = spec.topOd / 2;
       const tubeR = spec.tubeOd / 2;
       if (spec.angle === 0) {
         const off = edgeOffsetOf(spec);
@@ -777,7 +776,6 @@ ___SCAD_SOURCE___
       const exitR = spec.topId / 2;
       const boreR = spec.topBoreD / 2;
       const mouthR = spec.topMouthD / 2;
-      const clipR = spec.topStyle === "dyson" ? sockR + DYSON.clipWall : sockR;
 
       function topInner(zBase) {
         if (spec.topStyle === "cleantec") {
@@ -792,28 +790,7 @@ ___SCAD_SOURCE___
             [exitR, zBase],
           ];
         }
-        if (spec.topStyle === "dyson") {
-          const g0 = zBase + DYSON.tipH;
-          const g1 = g0 + DYSON.grooveH;
-          const g2 = g1 + DYSON.grooveTaperH;
-          const grooveR = DYSON.grooveD / 2;
-          return [
-            [-exitR, zBase],
-            [-exitR, g0],
-            [-grooveR, g0],
-            [-grooveR, g1],
-            [-sockR, g2],
-            [-exitR, g2],
-            [-exitR, zBase + spec.topH],
-            [exitR, zBase + spec.topH],
-            [exitR, g2],
-            [sockR, g2],
-            [grooveR, g1],
-            [grooveR, g0],
-            [exitR, g0],
-            [exitR, zBase],
-          ];
-        }
+        // Dyson bore is a plain cylinder — locking is only on the outside.
         return [
           [-exitR, zBase],
           [-exitR, zBase + spec.topH],
@@ -824,19 +801,24 @@ ___SCAD_SOURCE___
 
       function topOuter(zBase) {
         if (spec.topStyle === "dyson") {
-          const clipZ = zBase + 36.5;
+          // Outer groove near the free mouth; shaft is constant OD below.
+          const grooveR = DYSON.grooveD / 2;
+          const zMouth = zBase + spec.topH;
+          const zGroove1 = zMouth - DYSON.rimH;
+          const zGroove0 = zGroove1 - DYSON.grooveH;
+          const zShaft = zGroove0 - DYSON.grooveTaperH;
           return [
             [-sockR, zBase],
-            [-sockR, clipZ],
-            [-clipR, clipZ],
-            [-clipR, clipZ + DYSON.clipWall * 3.8],
-            [-sockR, clipZ + DYSON.clipWall * 3.8],
-            [-sockR, zBase + spec.topH],
-            [sockR, zBase + spec.topH],
-            [sockR, clipZ + DYSON.clipWall * 3.8],
-            [clipR, clipZ + DYSON.clipWall * 3.8],
-            [clipR, clipZ],
-            [sockR, clipZ],
+            [-sockR, zShaft],
+            [-grooveR, zGroove0],
+            [-grooveR, zGroove1],
+            [-sockR, zGroove1],
+            [-sockR, zMouth],
+            [sockR, zMouth],
+            [sockR, zGroove1],
+            [grooveR, zGroove1],
+            [grooveR, zGroove0],
+            [sockR, zShaft],
             [sockR, zBase],
           ];
         }

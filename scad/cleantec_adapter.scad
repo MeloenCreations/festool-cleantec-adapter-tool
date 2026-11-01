@@ -24,9 +24,10 @@
 // If a printed socket is too tight or too loose, change lip_deep_r,
 // lip_shallow_r, or bore_d by a tenth of a millimetre or two.
 //
-// The Dyson V6 connector matches the male wand tip tools click onto
-// (also DC35/DC45/DC52/DC58/DC59). A circumferential groove holds the
-// tool latch, and four orientation flats sit near the base of the tip.
+// The Dyson V6 connector is a male tip that plugs into a Dyson V6 /
+// DC35/DC45/DC52/DC58/DC59, like a stock tool tip. A circumferential
+// groove on the outside takes the vacuum's latch. The bore is smooth;
+// nothing inside the tip is needed for locking.
 //
 // Print with the bottom tube end on the bed and the top mouth facing up.
 // CLEANTEC shelves are chamfered underneath, so they do not need supports.
@@ -116,18 +117,18 @@ lip_h = 7;
 // Shelf centres in degrees. The last one is the shallow shelf.
 lip_centers = [0, 120, 240];
 
-// Dyson V6 male tool connector, in millimetres.
+// Dyson V6 male tool tip, in millimetres. Matches a stock accessory tip:
+// smooth bore, outer retaining groove near the free end. The vacuum latch
+// clicks into that groove from the outside.
 dyson_od_nom = 34.1;
 dyson_id_nom = 28.5;
-dyson_h = 46;
-dyson_tip_h = 10;
+dyson_h = 32;
+// Solid outer rim from the mouth down to the groove.
+dyson_rim_h = 5;
 dyson_groove_h = 4.45;
+// Taper from the groove back out to the full outer diameter.
 dyson_groove_taper_h = 2.75;
 dyson_groove_d = 30.7;
-dyson_clip_z = 37;
-dyson_clip_len = 9.5;
-dyson_clip_wall = 2.5;
-dyson_clip_width = 3;
 
 allowance = optimize_print ? print_allowance : 0;
 
@@ -178,6 +179,10 @@ assert(top_diameter > 0 && top_wall_length > 0,
        "Top diameter and top length must be positive.");
 assert(print_allowance >= 0,
        "Print allowance must be zero or a positive number.");
+assert(
+    dyson_h > dyson_rim_h + dyson_groove_h + dyson_groove_taper_h,
+    "Dyson tip length must leave room for the shaft below the groove."
+);
 assert(bottom_sized > 0,
        "The print allowance removes the whole bottom diameter. Reduce the allowance or turn optimization off.");
 assert(top_style != "tube" || top_sized > 0,
@@ -340,61 +345,35 @@ module cleantec_lips() {
     locking_lip(lip_shallow_r, lip_centers[2]);
 }
 
-// Male Dyson V6 tool tip. Tools slide on from +Z. Base is z = 0.
-// Built as one solid of revolution plus four shallow collar notches so the
-// mesh stays a single manifold volume.
+// Male Dyson V6 tool tip. Free mouth at +Z = dyson_h; base at z = 0 joins
+// the transition. Groove sits near the mouth so the vacuum latch catches
+// it from the outside. Bore is a plain cylinder.
 module dyson_solid() {
     od_r = dyson_od / 2;
     groove_r = dyson_groove_d / 2;
-    clip_r = od_r + dyson_clip_wall;
-    tip_z1 = dyson_tip_h;
-    tip_z2 = tip_z1 + dyson_groove_h;
-    tip_z3 = tip_z2 + dyson_groove_taper_h;
-    clip_z0 = dyson_clip_z - 0.5;
-    clip_z1 = clip_z0 + dyson_clip_len;
+    // z rises from the transition up to the free mouth.
+    z_shaft = dyson_h - dyson_rim_h - dyson_groove_h - dyson_groove_taper_h;
+    z_groove0 = z_shaft + dyson_groove_taper_h;
+    z_groove1 = z_groove0 + dyson_groove_h;
+    z_mouth = dyson_h;
 
-    // Profile on the +X side, spun around Z. The retaining groove is a
-    // reduced outer radius; the collar is a short thicker band.
-    rotate_extrude(convexity = 6)
+    rotate_extrude(convexity = 4)
         polygon([
             [0, 0],
             [od_r, 0],
-            [od_r, tip_z1],
-            [groove_r, tip_z1],
-            [groove_r, tip_z2],
-            [od_r, tip_z3],
-            [od_r, clip_z0],
-            [clip_r, clip_z0],
-            [clip_r, clip_z1],
-            [od_r, clip_z1],
-            [0, clip_z1],
+            [od_r, z_shaft],
+            [groove_r, z_groove0],
+            [groove_r, z_groove1],
+            [od_r, z_groove1],
+            [od_r, z_mouth],
+            [0, z_mouth],
         ]);
 }
 
 module dyson_void() {
-    od_r = dyson_od / 2;
     id_r = dyson_id / 2;
-    clip_z0 = dyson_clip_z - 0.5;
-
-    // Air passage.
     translate([0, 0, -eps])
         cylinder(h = dyson_h + 2 * eps, r = id_r);
-
-    // Four orientation notches in the collar. Each cut stops short of the
-    // main shaft so the collar stays one piece.
-    translate([0, 0, clip_z0 - eps])
-        for (a = [0, 90, 180, 270])
-            rotate([0, 0, a])
-                translate([
-                    -(dyson_clip_width + 1) / 2,
-                    -(od_r + dyson_clip_wall + 0.2),
-                    0
-                ])
-                    cube([
-                        dyson_clip_width + 1,
-                        dyson_clip_wall + 0.4,
-                        dyson_clip_len + 2 * eps
-                    ]);
 }
 
 module top_void() {

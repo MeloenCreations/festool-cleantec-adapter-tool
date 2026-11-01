@@ -65,6 +65,6 @@ The CLEANTEC socket is a tight fit. If the hose plug will not turn, open the gen
 
 **CLEANTEC.** The female socket is a 44.5 mm body with a 36.2 mm bore, a 40 mm lead-in at the mouth, and three locking shelves. Two shelves reach a radius of 16.6 mm and the third reaches 16.9 mm, which matches the slightly uneven CLEANTEC plug. The proportions were measured from Meister Edel's reference models on Printables (107234 and 98001) and eased by about 0.2 mm so a typical FDM print can still twist and lock.
 
-**Dyson V6.** The male tip is 34.1 mm across with a 28.5 mm bore, a retaining groove for the tool latch, and four orientation flats. It also fits DC35/DC45/DC52/DC58/DC59 tools. Optimize for 3D printing shrinks the outer diameter by the print allowance.
+**Dyson V6.** A male tip like a stock accessory: 34.1 mm across with a 28.5 mm smooth bore and an outer retaining groove for the vacuum latch. It plugs into a V6 / DC35/DC45/DC52/DC58/DC59. Nothing inside the tip is needed for locking. Optimize for 3D printing shrinks the outer diameter by the print allowance.
 
 **Tube.** Same inner/outer diameter controls as the bottom end. Optimize for 3D printing eases that diameter by the print allowance the same way.

@@ -30,7 +30,7 @@ CLEANTEC_H = 45.4
 CLEANTEC_EXIT_D = 32.0
 DYSON_OD = 34.1
 DYSON_ID = 28.5
-DYSON_H = 46.0
+DYSON_H = 32.0
 
 PARAM_PATTERNS = {
     "top_style": re.compile(r'^top_style = "[^"]+";', re.M),
