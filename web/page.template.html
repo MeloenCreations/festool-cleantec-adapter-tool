@@ -245,7 +245,7 @@
           <span class="choices">
             <label><input type="checkbox" id="optimize" name="optimize"> Optimize for 3D printing</label>
           </span>
-          <span class="hint">Adds 0.2 mm of clearance on every sized diameter. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller. The Dyson outer diameter also shrinks by 0.2 mm. Stopper top and bottom edges are tapered 45° so they need no support.</span>
+          <span class="hint">Adds 0.2 mm of clearance on every sized diameter. An inner diameter is printed 0.2 mm larger, an outer diameter 0.2 mm smaller. The Dyson outer diameter also shrinks by 0.2 mm. Stopper outer corners are cut at 45° to the horizontal top and bottom edges so they need no support.</span>
         </div>
         <label class="field">Wall thickness
           <span class="control">
@@ -323,7 +323,7 @@
       <ul>
         <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
         <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
-        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on every sized diameter, including a top tube and the Dyson outer diameter. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller. It also tapers the stopper’s top and bottom edges at 45° so the overhang needs no support.</li>
+        <li>Optimize for 3D printing adds 0.2&nbsp;mm of clearance on every sized diameter, including a top tube and the Dyson outer diameter. An inner diameter is printed 0.2&nbsp;mm larger, an outer diameter 0.2&nbsp;mm smaller. It also cuts the stopper’s outer corners at 45° to its horizontal top and bottom edges so the overhang needs no support.</li>
         <li>A stopper is a ridge in the transition: inside, outside, or both. Set its length along the axis and its height out from the wall. On a bend the outer shoulder runs farther than the inner one.</li>
         <li>Print with the bottom tube on the bed and the top mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
         <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
@@ -677,7 +677,7 @@ ___SCAD_SOURCE___
           bits.push("Dyson outer printed 0.2 mm smaller");
         }
         if (spec.stopperSide !== "none") {
-          bits.push("stopper edges tapered 45°");
+          bits.push("stopper outer corners cut 45° to the horizontal edges");
         }
         fit = " Print fit: " + bits.join("; ") + ".";
       }
@@ -829,14 +829,17 @@ ___SCAD_SOURCE___
         ];
       }
 
-      function stopperExtra(s) {
+      // Radial extent of the outer tip from the wall. Optimize mode chamfers
+      // only the outer corners at 45° to the horizontal top/bottom edges.
+      function stopperExtent(s) {
         if (!spec.stopperSide || spec.stopperSide === "none") return 0;
         const H = spec.stopperHeight;
         const L = spec.stopperLength;
-        const chamfer = spec.stopperChamfer || 0;
-        if (chamfer <= 0) return H;
-        const rise = Math.min(s, L - s, chamfer) * (H / chamfer);
-        return Math.max(0, Math.min(H, rise));
+        const c = spec.stopperChamfer || 0;
+        if (c <= 0) return H;
+        if (s <= c) return H - c + s;
+        if (s >= L - c) return H - c + (L - s);
+        return H;
       }
 
       if (spec.angle === 0) {
@@ -870,45 +873,65 @@ ___SCAD_SOURCE___
         // Overlay stopper ridges on the transition in the section view.
         const stopPolys = [];
         if (spec.stopperSide && spec.stopperSide !== "none") {
-          const z0 = z2 - spec.transition / 2 - spec.stopperLength / 2;
-          const steps = Math.max(6, Math.round(spec.stopperLength));
-          const leftOut = [];
-          const rightOut = [];
-          const leftOutWall = [];
-          const rightOutWall = [];
-          const leftIn = [];
-          const rightIn = [];
-          const leftInWall = [];
-          const rightInWall = [];
-          for (let i = 0; i <= steps; i++) {
-            const s = i * spec.stopperLength / steps;
-            const t = Math.max(0, Math.min(1, (z0 + s - z1) / spec.transition));
-            const ease = t * t * (3 - 2 * t);
-            const ox = off * (1 - ease);
-            const outer = tubeR + (sockR - tubeR) * t;
-            const inn = tubeRi + (exitR - tubeRi) * t;
-            const extra = stopperExtra(s);
-            const z = z0 + s;
-            if (spec.stopperSide === "outside" || spec.stopperSide === "both") {
-              leftOut.push([ox - outer - extra, z]);
-              rightOut.push([ox + outer + extra, z]);
-              leftOutWall.push([ox - outer, z]);
-              rightOutWall.push([ox + outer, z]);
-            }
-            if (spec.stopperSide === "inside" || spec.stopperSide === "both") {
-              leftIn.push([ox - (inn - extra), z]);
-              rightIn.push([ox + (inn - extra), z]);
-              leftInWall.push([ox - inn, z]);
-              rightInWall.push([ox + inn, z]);
-            }
+          // Match the OpenSCAD ring: constant mid-span wall radius, chamfers
+          // only on the outer corners relative to the horizontal edges.
+          const zMid = z2 - spec.transition / 2;
+          const z0 = zMid - spec.stopperLength / 2;
+          const tMid = Math.max(0, Math.min(1, (zMid - z1) / spec.transition));
+          const ease = tMid * tMid * (3 - 2 * tMid);
+          const ox = off * (1 - ease);
+          const outer = tubeR + (sockR - tubeR) * tMid;
+          const inn = tubeRi + (exitR - tubeRi) * tMid;
+          const L = spec.stopperLength;
+          const H = spec.stopperHeight;
+          const c = spec.stopperChamfer || 0;
+          if (spec.stopperSide === "outside" || spec.stopperSide === "both") {
+            const left = c >= L / 2
+              ? [[ox - outer, z0], [ox - (outer + H), zMid], [ox - outer, z0 + L]]
+              : [
+                  [ox - outer, z0],
+                  [ox - (outer + H - c), z0],
+                  [ox - (outer + H), z0 + c],
+                  [ox - (outer + H), z0 + L - c],
+                  [ox - (outer + H - c), z0 + L],
+                  [ox - outer, z0 + L],
+                ];
+            const right = c >= L / 2
+              ? [[ox + outer, z0], [ox + (outer + H), zMid], [ox + outer, z0 + L]]
+              : [
+                  [ox + outer, z0],
+                  [ox + (outer + H - c), z0],
+                  [ox + (outer + H), z0 + c],
+                  [ox + (outer + H), z0 + L - c],
+                  [ox + (outer + H - c), z0 + L],
+                  [ox + outer, z0 + L],
+                ];
+            stopPolys.push({ outer: left });
+            stopPolys.push({ outer: right });
           }
-          if (leftOut.length) {
-            stopPolys.push({ outer: [...leftOutWall, ...leftOut.slice().reverse()] });
-            stopPolys.push({ outer: [...rightOutWall, ...rightOut.slice().reverse()] });
-          }
-          if (leftIn.length) {
-            stopPolys.push({ outer: [...leftInWall, ...leftIn.slice().reverse()] });
-            stopPolys.push({ outer: [...rightInWall, ...rightIn.slice().reverse()] });
+          if (spec.stopperSide === "inside" || spec.stopperSide === "both") {
+            const left = c >= L / 2
+              ? [[ox - inn, z0], [ox - inn, z0 + L], [ox - (inn - H), zMid]]
+              : [
+                  [ox - inn, z0],
+                  [ox - (inn - (H - c)), z0],
+                  [ox - (inn - H), z0 + c],
+                  [ox - (inn - H), z0 + L - c],
+                  [ox - (inn - (H - c)), z0 + L],
+                  [ox - inn, z0 + L],
+                ];
+            const right = c >= L / 2
+              ? [[ox + inn, z0], [ox + inn, z0 + L], [ox + (inn - H), zMid]]
+              : [
+                  [ox + inn, z0],
+                  [ox + (inn - (H - c)), z0],
+                  [ox + (inn - H), z0 + c],
+                  [ox + (inn - H), z0 + L - c],
+                  [ox + (inn - (H - c)), z0 + L],
+                  [ox + inn, z0 + L],
+                ];
+            stopPolys.push({ outer: left });
+            stopPolys.push({ outer: right });
           }
         }
         return { outer: outer2, inner, stopPolys };
