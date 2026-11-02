@@ -9,7 +9,7 @@ A small tool that writes an OpenSCAD model of a vacuum adapter. The top end can 
 | Top tube length | 40 mm | Used when the top is a tube |
 | Bottom diameter | 28 mm | Size of the bottom tube |
 | Inner or outer | Inner | Which face that bottom diameter measures |
-| Optimize for 3D printing | Off | Ease sized diameters (and the Dyson outer) by the print allowance; also cuts stopper outer corners at 45° |
+| Optimize for 3D printing | Off | Ease sized diameters, the Dyson outer, and the CLEANTEC bore/shelves by the print allowance; also cuts stopper outer corners at 45° |
 | Print allowance | 0.2 mm | Clearance used when optimize is on: inner diameters grow, outer diameters shrink |
 | Bottom tube length | 40 mm | Length of the straight bottom tube |
 | Wall thickness | 3 mm | Thickness of the tube walls |
@@ -47,7 +47,7 @@ python3 generate.py --stopper both --stopper-length 5 --stopper-height 3 --optim
 python3 generate.py --diameter 28 --measurement inner --length 40 --thickness 3 -o adapter.stl
 ```
 
-`--top` is `cleantec`, `dyson`, or `tube`. `--measurement` / `--top-measurement` are `inner` or `outer`. `--stopper` is `none`, `inside`, `outside`, or `both`. `--optimize-print` eases sized diameters by `--print-allowance` (default 0.2 mm): an inner 28 mm becomes 28.2 mm, an outer 28 mm becomes 27.8 mm, and a Dyson tip shrinks by the same amount on the outside; it also cuts stopper outer corners at 45° to the horizontal edges. `--alignment` is `center` or `edge`. `--angle` is degrees from -90 to 90. A `.stl` output renders the model with OpenSCAD. The command checks that the wall thickness still leaves a passage and that the angle is in range.
+`--top` is `cleantec`, `dyson`, or `tube`. `--measurement` / `--top-measurement` are `inner` or `outer`. `--stopper` is `none`, `inside`, `outside`, or `both`. `--optimize-print` eases sized diameters by `--print-allowance` (default 0.2 mm): an inner 28 mm becomes 28.2 mm, an outer 28 mm becomes 27.8 mm, a Dyson tip shrinks by the same amount on the outside, and a CLEANTEC bore, mouth, exit, and locking shelves open by the same amount; it also cuts stopper outer corners at 45° to the horizontal edges. `--alignment` is `center` or `edge`. `--angle` is degrees from -90 to 90. A `.stl` output renders the model with OpenSCAD. The command checks that the wall thickness still leaves a passage and that the angle is in range.
 
 After changing `scad/cleantec_adapter.scad` or `web/page.template.html`, rebuild the page:
 
@@ -59,11 +59,11 @@ python3 generate.py --build-page
 
 Place the bottom tube on the bed and the top mouth facing up. CLEANTEC locking shelves are chamfered on the underside, so a straight adapter does not need supports. A bend may need support inside the elbow. PETG is a good default. Three or four perimeters keep the wall airtight.
 
-The CLEANTEC socket is a tight fit. If the hose plug will not turn, open the generated file and raise `lip_deep_r` and `lip_shallow_r` by 0.1 mm or 0.2 mm.
+The CLEANTEC socket is a tight fit. Turn on Optimize for 3D printing so the bore and shelves open by the print allowance. If the hose plug still will not turn, open the generated file and raise `lip_deep_r_nom` and `lip_shallow_r_nom` by 0.1 mm or 0.2 mm, or increase the allowance.
 
 ## Top ends
 
-**CLEANTEC.** The female socket is a 44.5 mm body with a 36.2 mm bore, a 40 mm lead-in at the mouth, and three locking shelves. Two shelves reach a radius of 16.6 mm and the third reaches 16.9 mm, which matches the slightly uneven CLEANTEC plug. The proportions were measured from Meister Edel's reference models on Printables (107234 and 98001) and eased by about 0.2 mm so a typical FDM print can still twist and lock.
+**CLEANTEC.** The female socket is a 44.5 mm body with a 36.2 mm bore, a 40 mm lead-in at the mouth, and three locking shelves. Two shelves reach a radius of 16.6 mm and the third reaches 16.9 mm, which matches the slightly uneven CLEANTEC plug. The proportions were measured from Meister Edel's reference models on Printables (107234 and 98001) and eased by about 0.2 mm so a typical FDM print can still twist and lock. Optimize for 3D printing opens those inner faces further by the print allowance; the outer shell stays 44.5 mm.
 
 **Dyson V6.** A male tip like a stock accessory: 34.1 mm across with a 28.5 mm smooth bore and an outer retaining groove for the vacuum latch. It plugs into a V6 / DC35/DC45/DC52/DC58/DC59. Nothing inside the tip is needed for locking. Optimize for 3D printing shrinks the outer diameter by the print allowance.
 
