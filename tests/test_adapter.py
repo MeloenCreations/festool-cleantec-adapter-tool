@@ -126,7 +126,8 @@ class GenerateTests(unittest.TestCase):
     def test_page_embeds_the_current_scad_source(self):
         page = generate.build_page()
         self.assertNotIn(generate.PLACEHOLDER, page)
-        self.assertIn("cleantec_od = 44.5;", page)
+        self.assertIn("cleantec_od_nom = 44.5;", page)
+        self.assertIn("bore_d_nom = 36.2;", page)
         self.assertIn("module locking_lip", page)
         self.assertIn('top_style = "cleantec";', page)
         self.assertIn("dyson_od_nom = 34.1;", page)
@@ -368,6 +369,39 @@ class RenderTests(unittest.TestCase):
         mins, maxs = section_radii(verts, 20)
         self.assertAlmostEqual(float(np.nanmin(mins)), 14.1, delta=0.15)
         self.assertAlmostEqual(float(np.nanmax(maxs)), 17.1, delta=0.15)
+
+    def test_print_fit_opens_the_cleantec_socket(self):
+        echoes, verts = self.render_case(28, "inner", 40, 3, optimize=True)
+        self.assertAlmostEqual(echoes["Top_OD"], 44.5)
+        self.assertAlmostEqual(echoes["Top_ID"], 32.2)
+        self.assertAlmostEqual(echoes["Print_allowance"], 0.2)
+        import numpy as np
+
+        def bins_of(mins, width=10):
+            folded = []
+            for start in range(0, 360, width):
+                chunk = mins[start : start + width]
+                if np.any(~np.isnan(chunk)):
+                    folded.append(float(np.nanmin(chunk)))
+            return np.array(folded)
+
+        socket_base = 40 + echoes["Transition_h"]
+        # Bore opens by the allowance (36.2 → 36.4), radius 18.2.
+        clear_bins = bins_of(section_radii(verts, socket_base + 30)[0])
+        inner = clear_bins[clear_bins < 20]
+        self.assertGreaterEqual(len(inner), 30)
+        self.assertAlmostEqual(float(np.median(inner)), 18.2, delta=0.15)
+        # Locking shelves ease outward by half the allowance.
+        lip_mins, lip_maxs = section_radii(verts, socket_base + 20.5)
+        lip_bins = bins_of(lip_mins)
+        shelves = lip_bins[(lip_bins > 16.3) & (lip_bins < 17.5)]
+        deep = shelves[shelves < 16.85]
+        shallow = shelves[shelves >= 16.85]
+        self.assertGreaterEqual(len(deep), 4)
+        self.assertGreaterEqual(len(shallow), 2)
+        self.assertAlmostEqual(float(np.median(deep)), 16.7, delta=0.15)
+        self.assertAlmostEqual(float(np.median(shallow)), 17.0, delta=0.15)
+        self.assertAlmostEqual(float(np.nanmax(lip_maxs)), 22.25, delta=0.05)
 
     def test_custom_print_allowance_is_applied(self):
         echoes, verts = self.render_case(

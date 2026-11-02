@@ -93,7 +93,9 @@ def top_dims(
 ) -> tuple[float, float, float]:
     """Return (outer diameter, exit / inner diameter, height) for the top end."""
     if top_style == "cleantec":
-        return CLEANTEC_OD, CLEANTEC_EXIT_D, CLEANTEC_H
+        # Female socket: open the exit bore; outer shell stays nominal.
+        exit_d = CLEANTEC_EXIT_D + print_allowance if optimize else CLEANTEC_EXIT_D
+        return CLEANTEC_OD, exit_d, CLEANTEC_H
     if top_style == "dyson":
         od = DYSON_OD - print_allowance if optimize else DYSON_OD
         return od, DYSON_ID, DYSON_H
@@ -416,7 +418,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--optimize-print",
         action="store_true",
-        help="Ease sized diameters by the print allowance: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter and cuts stopper outer corners at 45 degrees to the horizontal edges.",
+        help="Ease sized diameters by the print allowance: an inner diameter prints larger, an outer diameter smaller. Also eases the Dyson outer diameter, opens the CLEANTEC bore and shelves, and cuts stopper outer corners at 45 degrees to the horizontal edges.",
     )
     parser.add_argument(
         "--print-allowance",

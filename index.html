@@ -245,7 +245,7 @@
           <span class="choices">
             <label><input type="checkbox" id="optimize" name="optimize"> Optimize for 3D printing</label>
           </span>
-          <span class="hint">Adds clearance on every sized diameter. An inner diameter is printed larger by the allowance, an outer diameter smaller. The Dyson outer diameter also shrinks. Stopper outer corners are cut at 45° to the horizontal top and bottom edges so they need no support.</span>
+          <span class="hint">Adds clearance on every sized diameter. An inner diameter is printed larger by the allowance, an outer diameter smaller. The Dyson outer diameter shrinks, and the CLEANTEC bore, mouth, exit, and locking shelves open so a Festool plug still turns. Stopper outer corners are cut at 45° to the horizontal top and bottom edges so they need no support.</span>
           <div id="optimize-fields" class="top-tube-only" hidden>
             <label class="field">Print allowance
               <span class="control">
@@ -332,11 +332,11 @@
       <ul>
         <li>Download STL saves a file ready to slice. It is rendered by OpenSCAD on this computer, so run <code>python3 generate.py --serve</code> and open the address it prints. Download SCAD saves the source instead.</li>
         <li>Circles are cut into flats 0.25&nbsp;mm wide, finer than a 0.4&nbsp;mm nozzle line, so a Bambu H2D prints them round.</li>
-        <li>Optimize for 3D printing adds a print allowance on every sized diameter, including a top tube and the Dyson outer diameter. An inner diameter is printed larger by that amount, an outer diameter smaller. The allowance defaults to 0.2&nbsp;mm and is editable when optimize is on. It also cuts the stopper’s outer corners at 45° to its horizontal top and bottom edges so the overhang needs no support.</li>
+        <li>Optimize for 3D printing adds a print allowance on every sized diameter, including a top tube, the Dyson outer diameter, and the CLEANTEC socket’s bore, mouth, exit, and locking shelves. An inner diameter is printed larger by that amount, an outer diameter smaller. The allowance defaults to 0.2&nbsp;mm and is editable when optimize is on. It also cuts the stopper’s outer corners at 45° to its horizontal top and bottom edges so the overhang needs no support.</li>
         <li>A stopper is a ridge in the transition: inside, outside, or both. Set its length along the axis and its height out from the wall. On a bend the outer shoulder runs farther than the inner one.</li>
         <li>Print with the bottom tube on the bed and the top mouth facing up. A straight adapter, centered or along one edge, does not need supports. A bend may need support inside the elbow.</li>
         <li>PETG is a good default. Use three or four perimeters so the wall stays airtight.</li>
-        <li>If a CLEANTEC plug will not turn, raise <code>lip_deep_r</code> and <code>lip_shallow_r</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm.</li>
+        <li>If a CLEANTEC plug will not turn after optimizing, raise <code>lip_deep_r_nom</code> and <code>lip_shallow_r_nom</code> in the file by 0.1&nbsp;mm or 0.2&nbsp;mm, or increase the print allowance.</li>
       </ul>
     </section>
   </main>
@@ -348,15 +348,16 @@
 // diameter, whether that diameter is the inside or the outside, the tube
 // length, and the wall thickness. Optimize for 3D printing opens an inner
 // diameter by print_allowance, or shrinks an outer diameter by that same
-// amount, on every sized end (bottom tube, top tube, and the Dyson
-// connector). The bottom tube can stay centered or slide across until
-// one outer wall lines up with the top, and it can leave the top at an
-// angle from -90 to 90 degrees. An optional stopper ridge sits in the
-// transition: inside, outside, or both. Set its length along the axis
-// and its height out from the wall. On a bend the outer shoulder runs
-// farther than the inner one. Optimize for 3D printing cuts the
-// stopper's outer corners at 45 degrees to its horizontal top and
-// bottom edges so the overhang needs no support.
+// amount, on every sized end (bottom tube, top tube, the Dyson connector,
+// and the CLEANTEC socket's bore, mouth, exit, and locking shelves).
+// The bottom tube can stay centered or slide across until one outer wall
+// lines up with the top, and it can leave the top at an angle from -90
+// to 90 degrees. An optional stopper ridge sits in the transition:
+// inside, outside, or both. Set its length along the axis and its height
+// out from the wall. On a bend the outer shoulder runs farther than the
+// inner one. Optimize for 3D printing cuts the stopper's outer corners
+// at 45 degrees to its horizontal top and bottom edges so the overhang
+// needs no support.
 // Circles are divided into flats 0.25 mm wide, which is finer than a
 // 0.4 mm nozzle line, so a Bambu H2D prints them round.
 //
@@ -364,8 +365,10 @@
 // locking shelves. Proportions were measured from Meister Edel's
 // reference models (Printables 107234 and 98001) and the shelves were
 // eased by about 0.2 mm so a typical FDM print can still turn and lock.
-// If a printed socket is too tight or too loose, change lip_deep_r,
-// lip_shallow_r, or bore_d by a tenth of a millimetre or two.
+// Optimize for 3D printing opens those inner faces further by the print
+// allowance. If a printed socket is still too tight or too loose, change
+// lip_deep_r_nom, lip_shallow_r_nom, or bore_d_nom by a tenth of a
+// millimetre or two.
 //
 // The Dyson V6 connector is a male tip that plugs into a Dyson V6 /
 // DC35/DC45/DC52/DC58/DC59, like a stock tool tip. A circumferential
@@ -399,7 +402,7 @@ measurement = "inner"; // [inner, outer]
 // Ease sized diameters for a typical FDM print.
 // An inner diameter is printed larger by print_allowance. An outer diameter
 // is printed smaller by the same amount. Applies to the bottom tube, a top
-// tube, and the Dyson connector.
+// tube, the Dyson connector, and the CLEANTEC socket internals.
 optimize_print = false;
 
 // Clearance applied when optimize_print is on, in millimetres.
@@ -439,20 +442,23 @@ facet = 0.25; // [0.1:0.05:1]
 resolution = 0; // [0:16:720]
 
 /* [Hidden] */
-// Female CLEANTEC socket, in millimetres.
-cleantec_od = 44.5;
+// Female CLEANTEC socket, in millimetres. Nominal values match the plug;
+// optimize_print opens the inner faces by print_allowance so FDM prints
+// still take a stock hose tip. The outer shell diameter is not a mating
+// face for the plug, so it stays at the nominal size.
+cleantec_od_nom = 44.5;
 cleantec_h = 45.4;
 // Air passage where the socket meets the transition.
-cleantec_exit_d = 32;
+cleantec_exit_d_nom = 32;
 // Bore the plug body and its lugs slide through.
-bore_d = 36.2;
+bore_d_nom = 36.2;
 // Lead-in counterbore at the mouth.
-mouth_d = 40;
+mouth_d_nom = 40;
 // Locking shelves. The plug's grooves bottom out near a radius of
 // 16.5 mm; these sit just clear of that, and the lugs (radius 18 mm)
 // still catch on the way out. The third shelf is shallower.
-lip_deep_r = 16.6;
-lip_shallow_r = 16.9;
+lip_deep_r_nom = 16.6;
+lip_shallow_r_nom = 16.9;
 lip_angle = 46;
 // Height of the shelves above the socket base, and their thickness.
 lip_z0 = 17;
@@ -493,6 +499,15 @@ top_pair = diameters_from(top_diameter, top_measurement, wall_thickness);
 top_tube_id = top_pair[0];
 top_tube_od = top_pair[1];
 top_sized = sized_diameter(top_diameter, top_measurement);
+
+// Female CLEANTEC: open every inner mating face. Shelf radii move outward
+// by half the allowance so the plug's grooves keep the same clearance.
+cleantec_od = cleantec_od_nom;
+cleantec_exit_d = cleantec_exit_d_nom + allowance;
+bore_d = bore_d_nom + allowance;
+mouth_d = mouth_d_nom + allowance;
+lip_deep_r = lip_deep_r_nom + allowance / 2;
+lip_shallow_r = lip_shallow_r_nom + allowance / 2;
 
 dyson_od = dyson_od_nom - allowance;
 dyson_id = dyson_id_nom;
@@ -1153,11 +1168,11 @@ echo(Print_allowance = allowance);
     }
 
     const CLEANTEC = {
-      od: constant("cleantec_od"),
+      od: constant("cleantec_od_nom"),
       h: constant("cleantec_h"),
-      exitD: constant("cleantec_exit_d"),
-      boreD: constant("bore_d"),
-      mouthD: constant("mouth_d"),
+      exitD: constant("cleantec_exit_d_nom"),
+      boreD: constant("bore_d_nom"),
+      mouthD: constant("mouth_d_nom"),
     };
     const DYSON = {
       od: constant("dyson_od_nom"),
@@ -1385,11 +1400,12 @@ echo(Print_allowance = allowance);
 
       let topOd, topId, topH, topBoreD, topMouthD;
       if (topStyle === "cleantec") {
+        // Female socket: open inner faces; outer shell stays nominal.
         topOd = CLEANTEC.od;
-        topId = CLEANTEC.exitD;
+        topId = CLEANTEC.exitD + allowance;
         topH = CLEANTEC.h;
-        topBoreD = CLEANTEC.boreD;
-        topMouthD = CLEANTEC.mouthD;
+        topBoreD = CLEANTEC.boreD + allowance;
+        topMouthD = CLEANTEC.mouthD + allowance;
       } else if (topStyle === "dyson") {
         topOd = DYSON.od - allowance;
         topId = DYSON.id;
